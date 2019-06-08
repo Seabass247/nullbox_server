@@ -1,0 +1,6 @@
+[gd_resource type="NativeScript" format=2]
+
+[resource]
+resource_name = "Game"
+class_name = "Game"
+
