@@ -16,6 +16,8 @@ var rotation_helper
 
 var MOUSE_SENSITIVITY = 0.05
 
+signal moved
+
 func _ready():
 	
     rotation_helper = get_node("Yaw")
@@ -38,12 +40,16 @@ func process_input(delta):
 
     if Input.is_action_pressed("forward"):
         input_movement_vector.y += 1
+        emit_signal("moved")
     if Input.is_action_pressed("backward"):
         input_movement_vector.y -= 1
+        emit_signal("moved")
     if Input.is_action_pressed("left"):
         input_movement_vector.x -= 1
+        emit_signal("moved")
     if Input.is_action_pressed("right"):
         input_movement_vector.x += 1
+        emit_signal("moved")
 
     input_movement_vector = input_movement_vector.normalized()
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=2]
+[gd_scene load_steps=17 format=2]
 
 [ext_resource path="res://Game.gdns" type="Script" id=1]
 [ext_resource path="res://assets/grass/Ground03_col.jpg" type="Texture" id=2]
@@ -6,6 +6,7 @@
 [ext_resource path="res://assets/grass/Ground03_nrm.jpg" type="Texture" id=4]
 [ext_resource path="res://assets/grass/Ground03_rgh.jpg" type="Texture" id=5]
 [ext_resource path="res://Player.gd" type="Script" id=6]
+[ext_resource path="res://PlayerClient.gdns" type="Script" id=7]
 
 [sub_resource type="CubeMesh" id=1]
 size = Vector3( 1000, 1, 1000 )
@@ -77,6 +78,7 @@ transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0 )
 shape = SubResource( 5 )
 
 [node name="Yaw" type="Spatial" parent="Player"]
+editor/display_folded = true
 
 [node name="body" type="MeshInstance" parent="Player/Yaw"]
 transform = Transform( 1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 1, 0 )
@@ -98,4 +100,7 @@ transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.07865, 0 )
 layers = 2
 mesh = SubResource( 8 )
 material/0 = SubResource( 9 )
+
+[node name="PlayerClient" type="Spatial" parent="Player"]
+script = ExtResource( 7 )
 
