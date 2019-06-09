@@ -63,8 +63,8 @@ impl Laminar {
 
     #[export]
     fn send(&mut self, _owner: gdnative::Node, message: godot::GodotString) {
-        match &mut self.client.take() {
-            Some(client) => {
+        match self.client.take() {
+            Some(mut client) => {
                 client.send(DataType::ASCII {
                     string: message.to_string()
                 });
