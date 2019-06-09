@@ -14,8 +14,6 @@ use std::net::SocketAddr;
 use std::{thread, time};
 use nullbox::DataType;
 
-#[derive(gdnative::NativeClass)]
-#[inherit(gdnative::Node)]
 struct Laminar {
     client: Option<Client>,
     callback: bool,
@@ -46,17 +44,11 @@ impl Client {
 impl Laminar {
 
     fn _init(_owner: gdnative::Node) -> Self {
+        godot_print!("Laminar: plugin initialized!");
         Laminar {
             client: None,
             callback: false,
         }
-    }
-
-    fn register_properties(builder: &godot::init::ClassBuilder<Self>) {
-        builder.add_signal(godot::init::Signal {
-            name: "recv_data",
-            args: &[],
-        });
     }
 
     #[export]
@@ -88,7 +80,7 @@ impl Laminar {
                 match client._event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();
-                        let sent: Vec<u8> = received_data.iter().map(|u| {
+                        let _sent: Vec<u8> = received_data.iter().map(|u| {
                             poolByteArray.push(*u);
                             *u
                         }).collect();
@@ -116,8 +108,13 @@ impl Laminar {
     }
 
     #[export]
-    unsafe fn test(&mut self, mut _owner: godot::Node, message: godot::GodotString, other: godot::GodotString) {
-        godot_print!("Test message: {}, {}", message.to_string(), other.to_string());
+    unsafe fn test(&mut self, mut _owner: godot::Node) {
+        let mut byte_array = godot::ByteArray::new();
+        let _sent: Vec<u8> = b"this is a test".iter().map(|u| {
+            byte_array.push(*u);
+            *u
+        }).collect();
+        unsafe { _owner.emit_signal(godot::GodotString::from_str("recv_data"), &[godot::Variant::from_byte_array(&byte_array)]) };
     }
 
     #[export]
@@ -140,22 +137,41 @@ impl Laminar {
     }
 
     #[export]
-    unsafe fn set_recv_callback(&mut self, mut _owner: gdnative::Node, target: godot::Node, func: godot::GodotString) {
-        //let target = _owner.get_tree().unwrap().get_root().unwrap().get_node(target).unwrap();
-        godot_print!("Laminar: target callback node is: {}", target.get_path().to_string());
+    unsafe fn set_recv_callback(&mut self, mut _owner: gdnative::Node, target: godot::Node, method: godot::GodotString) {
+        //let method = godot::GodotString::from_str("on_data_recv");
+        godot_print!("Laminar: set target callback node: {}, method: {}", target.get_name().to_string(), method.to_string());
         let object = &target.to_object();
 
         _owner
             .connect(
                 godot::GodotString::from_str("recv_data"),
                 Some(*object),
-                func,
+                method,
                 godot::VariantArray::new(),
                 1,
             )
             .unwrap();
        
         self.callback = true;
+    }
+}
+
+impl godot::NativeClass for Laminar {
+    type Base = godot::Node;
+
+    fn class_name() -> &'static str {
+        "Laminar"
+    }
+
+    fn init(_owner: Self::Base) -> Self {
+        Self::_init(_owner)
+    }
+
+    fn register_properties(builder: &godot::init::ClassBuilder<Self>) {
+        builder.add_signal(godot::init::Signal {
+            name: "recv_data",
+            args: &[],
+        });
     }
 }
 

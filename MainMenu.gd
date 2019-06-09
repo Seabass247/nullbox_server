@@ -8,11 +8,8 @@ func _ready():
 	get_node("Control/Button").connect("pressed", self, "on_connect")
 	var Laminar = load("res://laminar_client.gdns")
 	laminar = Laminar.new()
-	var path : String = self.get_path()
-	print("NODEPATH", path)
-	laminar.set_recv_callback(self as CanvasLayer, "laminar_recv")
-	laminar.test(".", "goodbyee")
-	#laminar.set_recv_callback(self.get_node("."), "laminar_recv")
+	laminar.set_recv_callback(self as Node, "laminar_recv" as String)
+	laminar.test()
 	
 func on_connect():
 	address = get_node("Control/ServerAddrBox").text.strip_edges()
@@ -27,4 +24,4 @@ func on_connect():
 	#get_tree().change_scene("res://Game.tscn")
 
 func laminar_recv(data):
-	print("Client got data: ", data)
+	print("Client got data: ", data.get_string_from_utf8())
