@@ -10,5 +10,7 @@ export_presets.cfg
 # Mono-specific ignores
 .mono/
 
-/nullbox_server/target
-/nullbox_server/Cargo.lock
+/nullbox_server/target/
+/nullbox_server/target/Cargo.lock
+/nullbox_core/target/
+/nullbox_core/target/Cargo.lock

@@ -98,5 +98,3 @@ layers = 2
 mesh = SubResource( 8 )
 material/0 = SubResource( 9 )
 
-[node name="PlayerClient" type="Spatial" parent="Player"]
-
