@@ -17,8 +17,9 @@ func on_connect():
 	var global = get_node("/root/Global")
 	global.username = username
 	global.address = address
-	laminar.new(address)
-	laminar.send("hah")
+	laminar.new_connection(address)
+	var pack = "reg:" + username + "," + username.to_lower() + String(OS.get_unix_time())
+	laminar.send(pack)
 	var got_packet: PoolByteArray = laminar.get_packet()
 	print("Got packet: [", got_packet.get_string_from_utf8(),"]")
 	#get_tree().change_scene("res://Game.tscn")

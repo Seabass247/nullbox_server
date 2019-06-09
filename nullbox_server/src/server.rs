@@ -13,7 +13,7 @@ pub fn server_address() -> SocketAddr {
 }
 
 pub struct Server {
-    _packet_sender: Sender<Packet>,
+    packet_sender: Sender<Packet>,
     event_receiver: Receiver<SocketEvent>,
     _polling_thread: thread::JoinHandle<Result<(), ErrorKind>>,
 }
@@ -24,7 +24,7 @@ impl Server {
         let (mut socket, packet_sender, event_receiver) = Socket::bind(server_address()).unwrap();
         let polling_thread = thread::spawn(move || socket.start_polling());
         Server {
-            _packet_sender: packet_sender,
+            packet_sender,
             event_receiver,
             _polling_thread: polling_thread,
         }
@@ -42,6 +42,13 @@ impl Server {
                 let deserialized: DataType = deserialize(&received_data).unwrap();
 
                 self.perform_action(deserialized);
+
+                self.packet_sender
+                    .send(Packet::reliable_unordered(
+                        packet.addr(),
+                        "Copy that!".as_bytes().to_vec(),
+                    ))
+                    .unwrap();
             }
             Ok(SocketEvent::Timeout(address)) => {
                 println!("A client timed out: {}", address);

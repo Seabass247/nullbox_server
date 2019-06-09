@@ -63,7 +63,7 @@ impl Laminar {
                 client.send(DataType::ASCII {
                     string: message.to_string()
                 });
-                godot_print!("send packet: {}", message.to_string());
+                godot_print!("Laminar: send packet: {}", message.to_string());
                 self.client = Some(client);
             }
             None => {
@@ -74,29 +74,29 @@ impl Laminar {
 
     #[export]
     fn get_packet(&mut self, mut owner: gdnative::Node) -> godot::ByteArray {
-        let mut poolByteArray = godot::ByteArray::new();
+        let mut byte_array = godot::ByteArray::new();
         match self.client.clone() {
             Some(mut client) => {
                 match client._event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();
                         let _sent: Vec<u8> = received_data.iter().map(|u| {
-                            poolByteArray.push(*u);
+                            byte_array.push(*u);
                             *u
                         }).collect();
 
                         if self.callback {
-                            unsafe { owner.emit_signal(godot::GodotString::from_str("recv_data"), &[godot::Variant::from_byte_array(&poolByteArray)]) };
+                            unsafe { owner.emit_signal(godot::GodotString::from_str("recv_data"), &[godot::Variant::from_byte_array(&byte_array)]) };
                         }
                     }
                     Ok(SocketEvent::Timeout(address)) => {
-                        godot_print!("Connection to server timed out: {}", address);
+                        godot_print!("Laminar: Connection to server {} timed out.", address);
                     }
                     Ok(_) => {
                         godot_print!("Laminar: got nothing");
                     }
                     Err(e) => {
-                        godot_print!("Something went wrong when receiving, error: {:?}", e);
+                        godot_print!("Laminar: Something went wrong when receiving, error: {:?}", e);
                     } 
                 }
             }
@@ -104,13 +104,13 @@ impl Laminar {
                 godot_print!("Laminar error: must call function `new` first");
             }
         }
-        poolByteArray
+        byte_array
     }
 
     #[export]
     unsafe fn test(&mut self, mut _owner: godot::Node) {
         let mut byte_array = godot::ByteArray::new();
-        let _sent: Vec<u8> = b"this is a test".iter().map(|u| {
+        let _sent: Vec<u8> = b"this is test data".iter().map(|u| {
             byte_array.push(*u);
             *u
         }).collect();
@@ -118,7 +118,7 @@ impl Laminar {
     }
 
     #[export]
-    fn new(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
+    fn new_connection(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
         // setup an udp socket and bind it to the client address.
         let (mut socket, packet_sender, event_receiver) = Socket::bind("127.0.0.1:12346").unwrap();
         let polling_thread = thread::spawn(move || socket.start_polling());
