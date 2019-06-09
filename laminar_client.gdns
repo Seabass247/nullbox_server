@@ -9,6 +9,6 @@ dependency/X11.64 = [  ]
 dependency/X11.32 = [  ]
 
 [resource]
-class_name = "Client"
+class_name = "Laminar"
 library = SubResource( 1 )
 
