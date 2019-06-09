@@ -2,14 +2,15 @@ pub mod client;
 
 #[macro_use]
 extern crate gdnative as godot;
-#[macro_use]
 use bincode::{deserialize, serialize};
+use client::player::PlayerClient;
 use crossbeam_channel::{Receiver, Sender};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
+extern crate nullbox_core as nullbox;
+use nullbox::DataType;
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::{thread, time};
-use client::player::PlayerClient;
 
 /// The socket address of where the server is located.
 const SERVER_ADDR: &'static str = "127.0.0.1:12345";
@@ -25,7 +26,6 @@ struct Game {
 
 #[godot::methods]
 impl Game {
-
     fn _init(_owner: godot::Node) -> Self {
         Game {
             client: None,
@@ -36,7 +36,7 @@ impl Game {
     #[export]
     fn _ready(&mut self, owner: godot::Node) {
         godot_print!("Rust Game lib ready");
-        
+/*
         // Connect signal "moved" to our callback function
         unsafe {
             let mut source = owner.get_node(godot::NodePath::from_str("Player")).unwrap();
@@ -52,24 +52,52 @@ impl Game {
                 )
                 .unwrap();
         }
-        
-        // Expose our UDP client to this "class"
-        let mut client = Client::new();
-        self.client = Some(Box::new(client));
-        
-        // Expose this clients Player node to the class
+
+        // Expose this client's Player node to the class
         unsafe {
             let player_node = owner.get_node(godot::NodePath::from_str("Player")).unwrap();
             let player = player_node.cast::<godot::KinematicBody>().unwrap();
             self.player = Some(Box::new(player));
         }
-        
+*/
+        // Create our client connection and expose it to the class
+        godot_print!("1");
+    /*
+        unsafe {
+            let server_address = owner
+                .get_node(godot::NodePath::from_str("/root/Global"))
+                .unwrap()
+                .get(godot::GodotString::from_str("address"))
+                .to_string();
+            let address: SocketAddr = match server_address.as_str().parse() {
+                Ok(addr) => addr,
+                Err(e) => {
+                    godot_print!("Failed parsing connection string");
+                    return;
+                }
+            };
+            let username = owner
+                .get_node(godot::NodePath::from_str("/root/Global"))
+                .unwrap()
+                .get(godot::GodotString::from_str("username"))
+                .to_string();
+
+            let uid = owner
+                .get_node(godot::NodePath::from_str("/root/Global"))
+                .unwrap()
+                .get(godot::GodotString::from_str("network_uid"))
+                .to_string()
+                .into_bytes();
+
+            let mut client = Client::new(address, uid, username);
+            self.client = Some(Box::new(client));
+        }
+        */
+        loop {}
     }
 
     #[export]
-    fn _process(&mut self, _owner: godot::Node, delta: f32) {
-        
-    }
+    fn _process(&mut self, _owner: godot::Node, delta: f32) {}
 
     #[export]
     fn moved_callback(&mut self, mut _owner: godot::Node) {
@@ -100,26 +128,17 @@ fn server_address() -> SocketAddr {
     SERVER_ADDR.parse().unwrap()
 }
 
-#[derive(Serialize, Deserialize)]
-enum DataType {
-    Coords {
-        x: f32,
-        y: f32,
-        z: f32,
-    },
-    Name {
-        string: String,
-    },
-}
-
 struct Client {
     packet_sender: Sender<Packet>,
     _event_receiver: Receiver<SocketEvent>,
     _polling_thread: thread::JoinHandle<Result<(), ErrorKind>>,
+    server_addr: SocketAddr,
+    uid: Vec<u8>,
+    username: String,
 }
 
 impl Client {
-    pub fn new() -> Self {
+    pub fn new(server_address: SocketAddr, uid: Vec<u8>, username: String) -> Self {
         // setup an udp socket and bind it to the client address.
         let (mut socket, packet_sender, event_receiver) = Socket::bind(client_address()).unwrap();
         let polling_thread = thread::spawn(move || socket.start_polling());
@@ -128,6 +147,9 @@ impl Client {
             packet_sender,
             _event_receiver: event_receiver,
             _polling_thread: polling_thread,
+            server_addr: server_address,
+            uid,
+            username,
         }
     }
 

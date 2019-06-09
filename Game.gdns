@@ -6,4 +6,3 @@
 resource_name = "Game"
 class_name = "Game"
 library = ExtResource( 1 )
-
