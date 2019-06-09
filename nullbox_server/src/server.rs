@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use std::{thread, time};
 use nullbox_core::DataType;
 
-const SERVER_ADDR: &'static str = "127.0.0.1:12345";
+const SERVER_ADDR: &'static str = "127.0.0.1:12351";
 
 pub fn server_address() -> SocketAddr {
     SERVER_ADDR.parse().unwrap()
@@ -38,18 +38,18 @@ impl Server {
         match result {
             Ok(SocketEvent::Packet(packet)) => {
                 let received_data: &[u8] = packet.payload();
-
+                println!("Received data {:?}", packet.payload());
                 // deserialize bytes to `DataType` we passed in with `Client.send()`.
-                let deserialized: DataType = deserialize(&received_data).unwrap();
+                //let deserialized: DataType = deserialize(&received_data).unwrap();
 
-                self.perform_action(deserialized);
+                //self.perform_action(deserialized);
             }
             Ok(SocketEvent::Timeout(address)) => {
                 println!("A client timed out: {}", address);
             }
             Ok(_) => {}
             Err(e) => {
-                println!("Something went wrong when receiving, error: {:?}", e);
+                //println!("Something went wrong when receiving, error: {:?}", e);
             }
         }
     }

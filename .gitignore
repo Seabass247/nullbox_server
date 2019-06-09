@@ -14,3 +14,12 @@ export_presets.cfg
 /nullbox_server/target/Cargo.lock
 /nullbox_core/target/
 /nullbox_core/target/Cargo.lock
+
+
+#Added by cargo
+#
+#already existing elements are commented out
+
+#/target
+#**/*.rs.bk
+#Cargo.lock
