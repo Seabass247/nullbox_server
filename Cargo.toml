@@ -3,5 +3,8 @@ name = "null_box"
 version = "0.1.0"
 authors = ["Sebastian <sebjfk@gmail.com>"]
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
-gdnative = { path = "/home/sebastian/Documents/godot-rust" }
+gdnative = { path = "/home/sebastian/Documents/godot-rust/gdnative" }
