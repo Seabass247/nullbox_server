@@ -18,6 +18,7 @@ use nullbox::DataType;
 #[inherit(gdnative::Node)]
 struct Laminar {
     client: Option<Client>,
+    callback: bool,
 }
 
 #[derive(Clone)]
@@ -26,7 +27,6 @@ struct Client {
     _event_receiver: Receiver<SocketEvent>,
     server_address: SocketAddr,
 }
-
 impl Client {
     pub fn send(&mut self, data_type: DataType) {
         let serialized = serialize(&data_type);
@@ -47,8 +47,16 @@ impl Laminar {
 
     fn _init(_owner: gdnative::Node) -> Self {
         Laminar {
-            client: None
+            client: None,
+            callback: false,
         }
+    }
+
+    fn register_properties(builder: &godot::init::ClassBuilder<Self>) {
+        builder.add_signal(godot::init::Signal {
+            name: "recv_data",
+            args: &[],
+        });
     }
 
     #[export]
@@ -73,7 +81,7 @@ impl Laminar {
     }
 
     #[export]
-    fn get_packet(&mut self, _owner: gdnative::Node) -> godot::ByteArray {
+    fn get_packet(&mut self, mut owner: gdnative::Node) -> godot::ByteArray {
         let mut poolByteArray = godot::ByteArray::new();
         match self.client.clone() {
             Some(mut client) => {
@@ -84,6 +92,10 @@ impl Laminar {
                             poolByteArray.push(*u);
                             *u
                         }).collect();
+
+                        if self.callback {
+                            unsafe { owner.emit_signal(godot::GodotString::from_str("recv_data"), &[godot::Variant::from_byte_array(&poolByteArray)]) };
+                        }
                     }
                     Ok(SocketEvent::Timeout(address)) => {
                         godot_print!("Connection to server timed out: {}", address);
@@ -104,6 +116,11 @@ impl Laminar {
     }
 
     #[export]
+    unsafe fn test(&mut self, mut _owner: godot::Node, message: godot::GodotString, other: godot::GodotString) {
+        godot_print!("Test message: {}, {}", message.to_string(), other.to_string());
+    }
+
+    #[export]
     fn new(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
         // setup an udp socket and bind it to the client address.
         let (mut socket, packet_sender, event_receiver) = Socket::bind("127.0.0.1:12346").unwrap();
@@ -118,6 +135,27 @@ impl Laminar {
         };
 
         self.client = Some(client);
+
+        godot_print!("Laminar: created new connection to {}", address.to_string());
+    }
+
+    #[export]
+    unsafe fn set_recv_callback(&mut self, mut _owner: gdnative::Node, target: godot::Node, func: godot::GodotString) {
+        //let target = _owner.get_tree().unwrap().get_root().unwrap().get_node(target).unwrap();
+        godot_print!("Laminar: target callback node is: {}", target.get_path().to_string());
+        let object = &target.to_object();
+
+        _owner
+            .connect(
+                godot::GodotString::from_str("recv_data"),
+                Some(*object),
+                func,
+                godot::VariantArray::new(),
+                1,
+            )
+            .unwrap();
+       
+        self.callback = true;
     }
 }
 
