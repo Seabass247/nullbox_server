@@ -20,10 +20,10 @@ struct Laminar {
     client: Option<Client>,
 }
 
+#[derive(Clone)]
 struct Client {
     packet_sender: Sender<Packet>,
     _event_receiver: Receiver<SocketEvent>,
-    _polling_thread: thread::JoinHandle<Result<(), ErrorKind>>,
     server_address: SocketAddr,
 }
 
@@ -64,11 +64,43 @@ impl Laminar {
                     string: message.to_string()
                 });
                 godot_print!("send packet: {}", message.to_string());
+                self.client = Some(client);
             }
             None => {
                 godot_print!("Laminar error: must call function `new` before sending data");
             }
         }
+    }
+
+    #[export]
+    fn get_packet(&mut self, _owner: gdnative::Node) -> godot::ByteArray {
+        let mut poolByteArray = godot::ByteArray::new();
+        match self.client.clone() {
+            Some(mut client) => {
+                match client._event_receiver.recv() {
+                    Ok(SocketEvent::Packet(packet)) => {
+                        let received_data: &[u8] = packet.payload();
+                        let sent: Vec<u8> = received_data.iter().map(|u| {
+                            poolByteArray.push(*u);
+                            *u
+                        }).collect();
+                    }
+                    Ok(SocketEvent::Timeout(address)) => {
+                        godot_print!("Connection to server timed out: {}", address);
+                    }
+                    Ok(_) => {
+                        godot_print!("Laminar: got nothing");
+                    }
+                    Err(e) => {
+                        godot_print!("Something went wrong when receiving, error: {:?}", e);
+                    } 
+                }
+            }
+            None => {
+                godot_print!("Laminar error: must call function `new` first");
+            }
+        }
+        poolByteArray
     }
 
     #[export]
@@ -82,7 +114,6 @@ impl Laminar {
         let client = Client {
             packet_sender,
             _event_receiver: event_receiver,
-            _polling_thread: polling_thread,
             server_address,
         };
 

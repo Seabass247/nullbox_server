@@ -10,6 +10,8 @@ func _ready():
 	var laminar = Laminar.new()
 	laminar.new("127.0.0.1:12345")
 	laminar.send("help")
+	var got_packet: PoolByteArray = laminar.get_packet()
+	print("Got packet: [", got_packet.get_string_from_utf8(),"]")
 	
 func on_connect():
 	address = get_node("Control/ServerAddrBox").text
@@ -18,3 +20,5 @@ func on_connect():
 	global.username = username
 	global.address = address
 	#get_tree().change_scene("res://Game.tscn")
+
+	
