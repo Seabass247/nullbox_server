@@ -3,6 +3,9 @@ extern crate gdnative as godot;
 extern crate crossbeam_channel;
 extern crate serde_derive;
 extern crate laminar;
+extern crate bincode;
+
+use bincode::{deserialize, serialize};
 use crossbeam_channel::{Receiver, Sender};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
 use serde_derive::{Deserialize, Serialize};
@@ -19,6 +22,29 @@ struct Client {
     packet_sender: Sender<Packet>,
     _event_receiver: Receiver<SocketEvent>,
     _polling_thread: thread::JoinHandle<Result<(), ErrorKind>>,
+    server_address: SocketAddr,
+}
+
+#[derive(Serialize, Deserialize)]
+enum DataType {
+    ASCII {
+        string: String,
+    },
+}
+
+impl Client {
+    pub fn send(&mut self, data_type: DataType) {
+        let serialized = serialize(&data_type);
+
+        match serialized {
+            Ok(raw_data) => {
+                self.packet_sender
+                    .send(Packet::reliable_unordered(self.server_address, raw_data))
+                    .unwrap();
+            }
+            Err(e) => println!("Some error occurred: {:?}", e),
+        }
+    }
 }
 
 #[gdnative::methods]
@@ -36,15 +62,37 @@ impl Laminar {
     }
 
     #[export]
-    fn send(&self, _owner: gdnative::Node, message: godot::GodotString) {
-        godot_print!("send packet: {}", message.to_string())
+    fn send(&mut self, _owner: gdnative::Node, message: godot::GodotString) {
+        match &mut self.client.take() {
+            Some(client) => {
+                client.send(DataType::ASCII {
+                    string: message.to_string()
+                });
+                godot_print!("send packet: {}", message.to_string());
+            }
+            None => {
+                godot_print!("Laminar error: must call function `new` before sending data");
+            }
+        }
+
     }
 
     #[export]
-    fn new(&self, _owner: gdnative::Node, address: godot::GodotString) {
+    fn new(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
         // setup an udp socket and bind it to the client address.
-        let (mut socket, packet_sender, event_receiver) = Socket::bind(address.to_string()).unwrap();
+        let (mut socket, packet_sender, event_receiver) = Socket::bind("127.0.0.1:12346").unwrap();
         let polling_thread = thread::spawn(move || socket.start_polling());
+
+        let server_address: SocketAddr = address.to_string().parse().unwrap();
+
+        let client = Client {
+            packet_sender,
+            _event_receiver: event_receiver,
+            _polling_thread: polling_thread,
+            server_address,
+        };
+
+        self.client = Some(client);
     }
 }
 
