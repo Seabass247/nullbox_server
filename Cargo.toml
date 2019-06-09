@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gdnative = { path = "/home/sebastian/Documents/godot-rust/gdnative" }
+nullbox_core = { path = "nullbox_core" }
 laminar = "0.2.2"
 serde = "1.0"
 crossbeam-channel = "0.3"

@@ -4,6 +4,7 @@ extern crate crossbeam_channel;
 extern crate serde_derive;
 extern crate laminar;
 extern crate bincode;
+extern crate nullbox_core as nullbox;
 
 use bincode::{deserialize, serialize};
 use crossbeam_channel::{Receiver, Sender};
@@ -11,6 +12,7 @@ use laminar::{ErrorKind, Packet, Socket, SocketEvent};
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::{thread, time};
+use nullbox::DataType;
 
 #[derive(gdnative::NativeClass)]
 #[inherit(gdnative::Node)]
@@ -23,13 +25,6 @@ struct Client {
     _event_receiver: Receiver<SocketEvent>,
     _polling_thread: thread::JoinHandle<Result<(), ErrorKind>>,
     server_address: SocketAddr,
-}
-
-#[derive(Serialize, Deserialize)]
-enum DataType {
-    ASCII {
-        string: String,
-    },
 }
 
 impl Client {
@@ -74,7 +69,6 @@ impl Laminar {
                 godot_print!("Laminar error: must call function `new` before sending data");
             }
         }
-
     }
 
     #[export]
