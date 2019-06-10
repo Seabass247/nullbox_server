@@ -5,6 +5,7 @@ use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::{thread, time};
 use nullbox_core::DataType;
+use crate::player::Player;
 
 const SERVER_ADDR: &'static str = "127.0.0.1:12345";
 
@@ -16,6 +17,7 @@ pub struct Server {
     packet_sender: Sender<Packet>,
     event_receiver: Receiver<SocketEvent>,
     _polling_thread: thread::JoinHandle<Result<(), ErrorKind>>,
+    players: Vec<Player>,
 }
 
 impl Server {
@@ -27,6 +29,7 @@ impl Server {
             packet_sender,
             event_receiver,
             _polling_thread: polling_thread,
+            players: Vec::new(),
         }
     }
 
@@ -38,10 +41,10 @@ impl Server {
         match result {
             Ok(SocketEvent::Packet(packet)) => {
                 let received_data: &[u8] = packet.payload();
-                println!("Received data {:?}", packet.payload());
+                //println!("Received data {:?}", packet.payload());
                 let deserialized: DataType = deserialize(&received_data).unwrap();
 
-                self.perform_action(deserialized);
+                self.perform_action(deserialized, packet.addr());
 
                 self.packet_sender
                     .send(Packet::reliable_unordered(
@@ -61,7 +64,7 @@ impl Server {
     }
 
     /// Perform some processing of the data we have received.
-    fn perform_action(&self, data_type: DataType) {
+    fn perform_action(&mut self, data_type: DataType, pack_addr: SocketAddr) {
         match data_type {
             DataType::Coords {
                 x,
@@ -76,6 +79,45 @@ impl Server {
             }
             DataType::ASCII { string } => {
                 println!("Received text: {:?}", string);
+                let mut split = string.split(":");
+                let head = split.next();
+                let body: Vec<&str> = match split.next() {
+                    Some(body) => {
+                        body.split(",").collect()
+                    }
+                    _ => { Vec::new() }
+                };
+                match head {
+                    Some(head) => {
+                        match head {
+                            "reg" => {
+                                let player = Player {
+                                        ip: pack_addr,
+                                        username: body[0].to_string(),
+                                        id: body[1].to_string(),
+                                        pos: None,
+                                };
+                                self.players.push(player);
+                                println!("Registered player with name {}, id {}", body[0], body[1]);
+                                self.packet_sender
+                                    .send(Packet::reliable_unordered(
+                                        pack_addr,
+                                        "reg:success".as_bytes().to_vec(),
+                                    ))
+                                    .unwrap();
+                            }
+                            _ => {
+
+                            }
+                        }
+                    }
+                    _ => {
+                        println!("Packet has no head");
+                    }
+                }
+            }
+            DataType::Transform { .. } => {
+
             }
         }
     }

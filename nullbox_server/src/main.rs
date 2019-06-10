@@ -1,4 +1,5 @@
 mod server;
+mod player;
 use bincode::{deserialize, serialize};
 use crossbeam_channel::{Receiver, Sender};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};

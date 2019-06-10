@@ -25,6 +25,13 @@ struct Client {
     _event_receiver: Receiver<SocketEvent>,
     server_address: SocketAddr,
 }
+
+struct ShareNode {
+    node: godot::Node,
+}
+
+unsafe impl Send for ShareNode {}
+
 impl Client {
     pub fn send(&mut self, data_type: DataType) {
         let serialized = serialize(&data_type);
@@ -37,6 +44,38 @@ impl Client {
             }
             Err(e) => println!("Some error occurred: {:?}", e),
         }
+    }
+
+    pub unsafe fn start_receiving(self, owner: godot::Node) {
+        let mut byte_array = godot::ByteArray::new();
+        let mut plugin_node = ShareNode { node: owner.clone() };
+
+        thread::spawn(move || {
+            loop {
+                match self._event_receiver.recv() {
+                    Ok(SocketEvent::Packet(packet)) => {
+                            let received_data: &[u8] = packet.payload();
+                            let _sent: Vec<u8> = received_data.iter().map(|u| {
+                                byte_array.push(*u);
+                                *u
+                            }).collect();
+                            
+                            plugin_node.node.emit_signal(godot::GodotString::from_str("recv_data"), &[godot::Variant::from_byte_array(&byte_array)]);
+                            byte_array = godot::ByteArray::new();
+                            godot_print!("Laminar: Got packet from {}", packet.addr());
+                        }
+                        Ok(SocketEvent::Timeout(address)) => {
+                            godot_print!("Laminar: Connection to server {} timed out.", address);
+                        }
+                        Ok(_) => {
+                            godot_print!("Laminar: got nothing");
+                        }
+                        Err(e) => {
+                            godot_print!("Laminar: Something went wrong when receiving, error: {:?}", e);
+                    } 
+                }
+            }
+        });
     }
 }
 
@@ -73,6 +112,19 @@ impl Laminar {
     }
 
     #[export]
+    fn start_receiving(&mut self, mut owner: gdnative::Node) {
+        match self.client.clone() {
+            Some(client) => unsafe {
+                client.start_receiving(owner);
+                godot_print!("Laminar: listening for incoming packets... will forward them to recv callback");
+            }
+            None => {
+                godot_print!("Laminar error: must call function `new_connection` first");
+            }
+        }
+    }
+
+    #[export]
     fn get_packet(&mut self, mut owner: gdnative::Node) -> godot::ByteArray {
         let mut byte_array = godot::ByteArray::new();
         match self.client.clone() {
@@ -101,7 +153,7 @@ impl Laminar {
                 }
             }
             None => {
-                godot_print!("Laminar error: must call function `new` first");
+                godot_print!("Laminar error: must call function `new_connection` first");
             }
         }
         byte_array
