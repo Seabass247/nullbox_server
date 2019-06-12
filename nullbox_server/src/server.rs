@@ -83,12 +83,16 @@ impl Server {
                 let head = split.next();
                 let body: Vec<&str> = match split.next() {
                     Some(body) => {
-                        body.split(",").collect()
+                        body.split("&").collect()
                     }
-                    _ => { Vec::new() }
+                    _ => { 
+                        println!("failed to parse body, head: {}", head.unwrap());
+                        Vec::new() 
+                    }
                 };
                 match head {
                     Some(head) => {
+                        println!("Got some head: {}", head);
                         match head {
                             "reg" => {
                                 let player = Player {
@@ -102,20 +106,44 @@ impl Server {
                                 self.packet_sender
                                     .send(Packet::reliable_unordered(
                                         pack_addr,
-                                        "/root/MainMenu>somedata".as_bytes().to_vec(),
+                                        "0#/root/MainMenu>reg:success".as_bytes().to_vec(),
                                     ))
                                     .unwrap();
+                                std::thread::sleep(std::time::Duration::from_millis(3000));
+                                for player in self.players.iter() {
+                                    let resp = format!("0#/root/Game>initpl:{}&{}&{}", body[0].to_string(), body[1].to_string(), "5,0,5");
+                                    self.packet_sender
+                                        .send(Packet::reliable_unordered(
+                                            pack_addr,
+                                            resp.as_bytes().to_vec(),
+                                        ))
+                                       .unwrap();
+                                    println!("Sending new player setup data to all");
+                                } 
                             },
                             "note" => {
                                 self.packet_sender
                                 .send(Packet::reliable_unordered(
                                     pack_addr,
-                                    "/root/MainMenu/Control/FeedbackTextBox>here's your traaash".as_bytes().to_vec(),
+                                    "0#/root/MainMenu/Control/FeedbackTextBox>here's your traaash".as_bytes().to_vec(),
                                 ))
                                 .unwrap();
                             }
+                            "game" => {
+                                println!("Sending data to player node");   
+                                self.packet_sender
+                                .send(Packet::reliable_unordered(
+                                    pack_addr,
+                                    "0#/root/Game/Player>Here player have some traaash".as_bytes().to_vec(),
+                                ))
+                                .unwrap();   
+                            }
+                            "move" => {
+                                let new_pos = body[0];
+                                println!("Sending a player's location ({}) to others", new_pos);
+                            }
                             _ => {
-
+                                println!("Failed to parse. Got unknown head.");      
                             }
                         }
                     }

@@ -7,6 +7,7 @@ const JUMP_SPEED = 18
 const ACCEL = 4.5
 
 var dir = Vector3()
+var laminar
 
 const DEACCEL= 16
 const MAX_SLOPE_ANGLE = 40
@@ -19,10 +20,11 @@ var MOUSE_SENSITIVITY = 0.05
 signal moved
 
 func _ready():
-	
+    laminar = get_node("/root/Global").laminar
+    laminar.send("game:foo")
     rotation_helper = get_node("Yaw")
     camera = get_node("Yaw/Camera")
-
+    self.connect("moved", self, "on_moved")
     Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func _physics_process(delta):
@@ -104,3 +106,10 @@ func _input(event):
         var camera_rot = rotation_helper.rotation_degrees
         camera_rot.x = clamp(camera_rot.x, -70, 70)
         rotation_helper.rotation_degrees = camera_rot
+
+func on_network_received(data):
+    print("Player got data: ", data)
+
+func on_moved():
+    var pos = self.get_global_transform().origin
+    laminar.send("move:" + String(pos))

@@ -24,6 +24,7 @@ struct Client {
     packet_sender: Sender<Packet>,
     _event_receiver: Receiver<SocketEvent>,
     server_address: SocketAddr,
+    uid: Option<String>,
 }
 
 struct ShareNode {
@@ -64,15 +65,36 @@ impl Client {
                             Ok(data) => data,
                             _ => continue,
                         };
-                        // Separate node path from data in packet with char '>' as separator
-                        let data_str_parts: Vec<&str> = received_data_str.split(">").collect();
 
-                        let node_path = data_str_parts[0];
-                        if data_str_parts.len() <= 1 {
+                        // Stop processing packet if there is no valid id separator ("#").
+                        let id_and_data: Vec<&str> = received_data_str.split("#").collect();
+                        if id_and_data.len() <= 1 {
+                            continue;
+                        }
+
+                        // Stop processing packet if there is no valid path separator (">").
+                        let id_path_and_data: Vec<&str> = received_data_str.split(">").collect();
+                        if id_path_and_data.len() <= 1 {
                             continue;
                         }
                         
-                        let data_body = data_str_parts[1];
+                        let data_str_parts: Vec<&str> =  received_data_str.split(|c| c == '#' || c == '>').collect();
+                        
+                        let recv_uid = data_str_parts[0];
+                        let node_path = data_str_parts[1];
+                        let data_body = data_str_parts[2];
+                        
+                        // If this client has an assigned unique network id, decide whether the recv'd id matches it.
+                        if let Some(id) = &self.uid {
+                            match id.as_str() {
+                                // Anyone can read 0 id packets. Keep processing...
+                                "0" => {}
+                                // Covers all ids not 0; is it our client's id?  If not, stop processing.
+                                _ => if id != recv_uid {
+                                    continue;
+                                }
+                            }
+                        }
 
                         let _sent: Vec<u8> = received_data
                             .iter()
@@ -88,8 +110,13 @@ impl Client {
                             .unwrap()
                             .get_root()
                             .unwrap()
-                            .get_node(godot::NodePath::from_str(node_path))
-                            .unwrap();
+                            .get_node(godot::NodePath::from_str(node_path));
+                        
+                        // If the engine cannot find node by our path, drop our data.
+                        let target = match target {
+                            Some(target) => target,
+                            _ => continue,
+                        };
 
                         // Connect the callback signal to the packet's specified destination node.
                         {
@@ -100,7 +127,7 @@ impl Client {
                                 .connect(
                                     godot::GodotString::from_str("recv_data"),
                                     Some(*object),
-                                    godot::GodotString::from_str("on_network_received"),
+                                    godot::GodotString::from_str("on_network_received"),  // TODO: use dynamic method names sourced from packet, like "_on_net_foo"
                                     godot::VariantArray::new(),
                                     1,
                                 )
@@ -123,7 +150,7 @@ impl Client {
                                     Some(*object),
                                     godot::GodotString::from_str("on_network_received"),
                                 )
-                        }                        
+                        }
                         byte_array = godot::ByteArray::new();
                         godot_print!("Laminar: Got packet from {}", packet.addr());
                     }
@@ -267,6 +294,7 @@ impl Laminar {
             packet_sender,
             _event_receiver: event_receiver,
             server_address,
+            uid: None,
         };
 
         self.client = Some(client);
