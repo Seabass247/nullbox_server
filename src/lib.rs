@@ -1,18 +1,18 @@
 #[macro_use]
 extern crate gdnative as godot;
-extern crate crossbeam_channel;
-extern crate serde_derive;
-extern crate laminar;
 extern crate bincode;
+extern crate crossbeam_channel;
+extern crate laminar;
 extern crate nullbox_core as nullbox;
+extern crate serde_derive;
 
 use bincode::{deserialize, serialize};
 use crossbeam_channel::{Receiver, Sender};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
+use nullbox::DataType;
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::{thread, time};
-use nullbox::DataType;
 
 struct Laminar {
     client: Option<Client>,
@@ -46,33 +46,99 @@ impl Client {
         }
     }
 
-    pub unsafe fn start_receiving(self, owner: godot::Node) {
+    pub unsafe fn start_receiving(self, owner: godot::Node, context: godot::Node) {
         let mut byte_array = godot::ByteArray::new();
-        let mut plugin_node = ShareNode { node: owner.clone() };
+        let mut plugin_node = ShareNode {
+            node: owner.clone(),
+        };
+        let mut context = ShareNode {
+            node: context.clone(),
+        };
 
         thread::spawn(move || {
             loop {
                 match self._event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
-                            let received_data: &[u8] = packet.payload();
-                            let _sent: Vec<u8> = received_data.iter().map(|u| {
+                        let received_data: &[u8] = packet.payload();
+                        let received_data_str = match std::str::from_utf8(received_data) {
+                            Ok(data) => data,
+                            _ => continue,
+                        };
+                        // Separate node path from data in packet with char '>' as separator
+                        let data_str_parts: Vec<&str> = received_data_str.split(">").collect();
+
+                        let node_path = data_str_parts[0];
+                        if data_str_parts.len() <= 1 {
+                            continue;
+                        }
+                        
+                        let data_body = data_str_parts[1];
+
+                        let _sent: Vec<u8> = received_data
+                            .iter()
+                            .map(|u| {
                                 byte_array.push(*u);
                                 *u
-                            }).collect();
-                            
-                            plugin_node.node.emit_signal(godot::GodotString::from_str("recv_data"), &[godot::Variant::from_byte_array(&byte_array)]);
-                            byte_array = godot::ByteArray::new();
-                            godot_print!("Laminar: Got packet from {}", packet.addr());
+                            })
+                            .collect();
+
+                        let target = context
+                            .node
+                            .get_tree()
+                            .unwrap()
+                            .get_root()
+                            .unwrap()
+                            .get_node(godot::NodePath::from_str(node_path))
+                            .unwrap();
+
+                        // Connect the callback signal to the packet's specified destination node.
+                        {
+                            let object = &target.to_object();
+
+                            plugin_node
+                                .node
+                                .connect(
+                                    godot::GodotString::from_str("recv_data"),
+                                    Some(*object),
+                                    godot::GodotString::from_str("on_network_received"),
+                                    godot::VariantArray::new(),
+                                    1,
+                                )
+                                .unwrap();
                         }
-                        Ok(SocketEvent::Timeout(address)) => {
-                            godot_print!("Laminar: Connection to server {} timed out.", address);
-                        }
-                        Ok(_) => {
-                            godot_print!("Laminar: got nothing");
-                        }
-                        Err(e) => {
-                            godot_print!("Laminar: Something went wrong when receiving, error: {:?}", e);
-                    } 
+
+                        // Use godot signal to send data to the target node's callback function.
+                        plugin_node.node.emit_signal(
+                            godot::GodotString::from_str("recv_data"),
+                            &[godot::Variant::from_str(data_body)],
+                        );
+
+                        // Disconnect the callback signal from the packet's specified destination node.
+                        {
+                            let object = &target.to_object();
+                            plugin_node
+                                .node
+                                .disconnect(
+                                    godot::GodotString::from_str("recv_data"),
+                                    Some(*object),
+                                    godot::GodotString::from_str("on_network_received"),
+                                )
+                        }                        
+                        byte_array = godot::ByteArray::new();
+                        godot_print!("Laminar: Got packet from {}", packet.addr());
+                    }
+                    Ok(SocketEvent::Timeout(address)) => {
+                        godot_print!("Laminar: Connection to server {} timed out.", address);
+                    }
+                    Ok(_) => {
+                        godot_print!("Laminar: got nothing");
+                    }
+                    Err(e) => {
+                        godot_print!(
+                            "Laminar: Something went wrong when receiving, error: {:?}",
+                            e
+                        );
+                    }
                 }
             }
         });
@@ -81,7 +147,6 @@ impl Client {
 
 #[gdnative::methods]
 impl Laminar {
-
     fn _init(_owner: gdnative::Node) -> Self {
         godot_print!("Laminar: plugin initialized!");
         Laminar {
@@ -100,24 +165,28 @@ impl Laminar {
         match self.client.take() {
             Some(mut client) => {
                 client.send(DataType::ASCII {
-                    string: message.to_string()
+                    string: message.to_string(),
                 });
                 godot_print!("Laminar: send packet: {}", message.to_string());
                 self.client = Some(client);
             }
             None => {
-                godot_print!("Laminar error: must call function `new_connection` before sending data");
+                godot_print!(
+                    "Laminar error: must call function `new_connection` before sending data"
+                );
             }
         }
     }
 
     #[export]
-    fn start_receiving(&mut self, mut owner: gdnative::Node) {
+    fn start_receiving(&mut self, mut owner: gdnative::Node, context: godot::Node) {
         match self.client.clone() {
             Some(client) => unsafe {
-                client.start_receiving(owner);
-                godot_print!("Laminar: listening for incoming packets... will forward them to recv callback");
-            }
+                client.start_receiving(owner, context);
+                godot_print!(
+                    "Laminar: listening for incoming packets... will forward them to recv callback"
+                );
+            },
             None => {
                 godot_print!("Laminar error: must call function `new_connection` first");
             }
@@ -128,30 +197,39 @@ impl Laminar {
     fn get_packet(&mut self, mut owner: gdnative::Node) -> godot::ByteArray {
         let mut byte_array = godot::ByteArray::new();
         match self.client.clone() {
-            Some(mut client) => {
-                match client._event_receiver.recv() {
-                    Ok(SocketEvent::Packet(packet)) => {
-                        let received_data: &[u8] = packet.payload();
-                        let _sent: Vec<u8> = received_data.iter().map(|u| {
+            Some(mut client) => match client._event_receiver.recv() {
+                Ok(SocketEvent::Packet(packet)) => {
+                    let received_data: &[u8] = packet.payload();
+                    let _sent: Vec<u8> = received_data
+                        .iter()
+                        .map(|u| {
                             byte_array.push(*u);
                             *u
-                        }).collect();
+                        })
+                        .collect();
 
-                        if self.callback {
-                            unsafe { owner.emit_signal(godot::GodotString::from_str("recv_data"), &[godot::Variant::from_byte_array(&byte_array)]) };
-                        }
+                    if self.callback {
+                        unsafe {
+                            owner.emit_signal(
+                                godot::GodotString::from_str("recv_data"),
+                                &[godot::Variant::from_byte_array(&byte_array)],
+                            )
+                        };
                     }
-                    Ok(SocketEvent::Timeout(address)) => {
-                        godot_print!("Laminar: Connection to server {} timed out.", address);
-                    }
-                    Ok(_) => {
-                        godot_print!("Laminar: got nothing");
-                    }
-                    Err(e) => {
-                        godot_print!("Laminar: Something went wrong when receiving, error: {:?}", e);
-                    } 
                 }
-            }
+                Ok(SocketEvent::Timeout(address)) => {
+                    godot_print!("Laminar: Connection to server {} timed out.", address);
+                }
+                Ok(_) => {
+                    godot_print!("Laminar: got nothing");
+                }
+                Err(e) => {
+                    godot_print!(
+                        "Laminar: Something went wrong when receiving, error: {:?}",
+                        e
+                    );
+                }
+            },
             None => {
                 godot_print!("Laminar error: must call function `new_connection` first");
             }
@@ -162,11 +240,19 @@ impl Laminar {
     #[export]
     unsafe fn test(&mut self, mut _owner: godot::Node) {
         let mut byte_array = godot::ByteArray::new();
-        let _sent: Vec<u8> = b"this is test data".iter().map(|u| {
-            byte_array.push(*u);
-            *u
-        }).collect();
-        unsafe { _owner.emit_signal(godot::GodotString::from_str("recv_data"), &[godot::Variant::from_byte_array(&byte_array)]) };
+        let _sent: Vec<u8> = b"this is test data"
+            .iter()
+            .map(|u| {
+                byte_array.push(*u);
+                *u
+            })
+            .collect();
+        unsafe {
+            _owner.emit_signal(
+                godot::GodotString::from_str("recv_data"),
+                &[godot::Variant::from_byte_array(&byte_array)],
+            )
+        };
     }
 
     #[export]
@@ -189,21 +275,24 @@ impl Laminar {
     }
 
     #[export]
-    unsafe fn set_recv_callback(&mut self, mut _owner: gdnative::Node, target: godot::Node, method: godot::GodotString) {
+    unsafe fn set_recv_callback(&mut self, mut _owner: gdnative::Node, target: godot::Node) {
         //let method = godot::GodotString::from_str("on_data_recv");
-        godot_print!("Laminar: set target callback node: {}, method: {}", target.get_name().to_string(), method.to_string());
+        godot_print!(
+            "Laminar: set recv callback to node: {}",
+            target.get_name().to_string()
+        );
         let object = &target.to_object();
 
         _owner
             .connect(
                 godot::GodotString::from_str("recv_data"),
                 Some(*object),
-                method,
+                godot::GodotString::from_str("on_network_received"),
                 godot::VariantArray::new(),
                 1,
             )
             .unwrap();
-       
+
         self.callback = true;
     }
 }

@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://MainMenu.gd" type="Script" id=1]
 [ext_resource path="res://assets/splash/nullnut_logo.png" type="Texture" id=2]
+[ext_resource path="res://FeedbackTextBox.gd" type="Script" id=3]
 
 [sub_resource type="DynamicFont" id=1]
 size = 200
@@ -83,10 +84,11 @@ custom_fonts/mono_font = SubResource( 1 )
 text = "NullBox Sandbox Game
         Version 0.0.1"
 
-[node name="RecvButton" type="Button" parent="Control"]
-margin_left = 210.0
+[node name="FeedbackTextBox" type="TextEdit" parent="Control"]
+margin_left = 80.0
 margin_top = 270.0
-margin_right = 304.0
-margin_bottom = 290.0
-text = "Get received"
+margin_right = 430.0
+margin_bottom = 296.0
+readonly = true
+script = ExtResource( 3 )
 

@@ -102,9 +102,17 @@ impl Server {
                                 self.packet_sender
                                     .send(Packet::reliable_unordered(
                                         pack_addr,
-                                        "reg:success".as_bytes().to_vec(),
+                                        "/root/MainMenu>somedata".as_bytes().to_vec(),
                                     ))
                                     .unwrap();
+                            },
+                            "note" => {
+                                self.packet_sender
+                                .send(Packet::reliable_unordered(
+                                    pack_addr,
+                                    "/root/MainMenu/Control/FeedbackTextBox>here's your traaash".as_bytes().to_vec(),
+                                ))
+                                .unwrap();
                             }
                             _ => {
 
