@@ -106,7 +106,7 @@ impl Laminar {
                 self.client = Some(client);
             }
             None => {
-                godot_print!("Laminar error: must call function `new` before sending data");
+                godot_print!("Laminar error: must call function `new_connection` before sending data");
             }
         }
     }
