@@ -75,21 +75,37 @@ impl Client {
                         if id_path_and_data.len() <= 1 {
                             continue;
                         }
-                        
-                        let data_str_parts: Vec<&str> =  received_data_str.split(|c| c == '#' || c == '>').collect();
-                        
+
+                        let data_str_parts: Vec<&str> =
+                            received_data_str.split(|c| c == '#' || c == '>').collect();
+
                         let recv_uid = data_str_parts[0];
                         let node_path = data_str_parts[1];
                         let data_body = data_str_parts[2];
-                        
+
+                        // Fill the data array with fields and their subfield labels and values
+                        // Example: "foo,4,3,2;bar,6,3,7" => [ ["foo","4","3","2"], ["bar","6","3","7"] ]
+                        let mut data_array = godot::VariantArray::new();
+                        data_body
+                            .split(";")
+                            .for_each(|field| if !field.is_empty() {
+                                let field_split: Vec<&str> = field.split(",").collect();
+                                let mut subfield_array = godot::StringArray::new();
+                                subfield_array.push(&godot::GodotString::from_str(field_split[0]));
+                                subfield_array.push(&godot::GodotString::from_str(field_split[1]));
+                                data_array.push(&godot::Variant::from_string_array(&subfield_array));
+                            });
+
                         // If this client has an assigned unique network id, decide whether the recv'd id matches it.
                         if let Some(id) = &self.uid {
                             match id.as_str() {
                                 // Anyone can read 0 id packets. Keep processing...
                                 "0" => {}
                                 // Covers all ids not 0; is it our client's id?  If not, stop processing.
-                                _ => if id != recv_uid {
-                                    continue;
+                                _ => {
+                                    if id != recv_uid {
+                                        continue;
+                                    }
                                 }
                             }
                         }
@@ -109,7 +125,7 @@ impl Client {
                             .get_root()
                             .unwrap()
                             .get_node(godot::NodePath::from_str(node_path));
-                        
+
                         // If the engine cannot find node by our path, drop our data.
                         let target = match target {
                             Some(target) => target,
@@ -125,7 +141,7 @@ impl Client {
                                 .connect(
                                     godot::GodotString::from_str("recv_data"),
                                     Some(*object),
-                                    godot::GodotString::from_str("on_network_received"),  // TODO: use dynamic method names sourced from packet, like "_on_net_foo"
+                                    godot::GodotString::from_str("on_network_received"), // TODO: use dynamic method names sourced from packet, like "_on_net_foo"
                                     godot::VariantArray::new(),
                                     1,
                                 )
@@ -135,19 +151,17 @@ impl Client {
                         // Use godot signal to send data to the target node's callback function.
                         plugin_node.node.emit_signal(
                             godot::GodotString::from_str("recv_data"),
-                            &[godot::Variant::from_str(data_body)],
+                            &[godot::Variant::from_array(&data_array)],
                         );
 
                         // Disconnect the callback signal from the packet's specified destination node.
                         {
                             let object = &target.to_object();
-                            plugin_node
-                                .node
-                                .disconnect(
-                                    godot::GodotString::from_str("recv_data"),
-                                    Some(*object),
-                                    godot::GodotString::from_str("on_network_received"),
-                                )
+                            plugin_node.node.disconnect(
+                                godot::GodotString::from_str("recv_data"),
+                                Some(*object),
+                                godot::GodotString::from_str("on_network_received"),
+                            )
                         }
                         byte_array = godot::ByteArray::new();
                         godot_print!("Laminar: Got packet from {}", packet.addr());
