@@ -10,6 +10,6 @@ func _ready():
     laminar = Laminar.new()
     
 
-func init_client(username, address, network_id):
+func init_client(username, address):
     laminar.new_connection(address)
     laminar.start_receiving(self as Node)

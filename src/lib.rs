@@ -34,17 +34,15 @@ struct ShareNode {
 unsafe impl Send for ShareNode {}
 
 impl Client {
-    pub fn send(&mut self, data_type: DataType) {
-        let serialized = serialize(&data_type);
-
-        match serialized {
-            Ok(raw_data) => {
-                self.packet_sender
-                    .send(Packet::reliable_unordered(self.server_address, raw_data))
-                    .unwrap();
-            }
-            Err(e) => println!("Some error occurred: {:?}", e),
-        }
+    pub fn send(&mut self, msg: String) {
+        let raw_data = msg.as_bytes().to_vec();
+        let packet_sender = self.packet_sender.clone();
+        let addr = self.server_address;
+        thread::spawn(move || {
+            &packet_sender
+                .send(Packet::reliable_unordered(addr, raw_data))
+                .unwrap();
+        });
     }
 
     pub unsafe fn start_receiving(self, owner: godot::Node, context: godot::Node) {
@@ -191,9 +189,7 @@ impl Laminar {
     fn send(&mut self, _owner: gdnative::Node, message: godot::GodotString) {
         match self.client.take() {
             Some(mut client) => {
-                client.send(DataType::ASCII {
-                    string: message.to_string(),
-                });
+                client.send(message.to_string());
                 godot_print!("Laminar: send packet: {}", message.to_string());
                 self.client = Some(client);
             }

@@ -7,6 +7,7 @@ use nullbox_core::DataType;
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::{thread, time};
+use super::HashMap;
 
 const SERVER_ADDR: &'static str = "127.0.0.1:12345";
 
@@ -41,6 +42,30 @@ impl Server {
         // Start the listening thread.
         thread::spawn(move || loop {
             receive_packet(&er, &ps, &s);
+        });
+    }
+
+    pub fn send_all(&self, send_buf: crate::MsgsToSend) {
+        let send_buf = send_buf.clone();
+        let packet_sender = self.packet_sender.clone();
+        thread::spawn(move || {
+            for (addr, msg_str) in send_buf {
+                &packet_sender
+                    .send(Packet::reliable_unordered(addr, msg_str.as_bytes().to_vec()))
+                    .unwrap();
+            }
+        });
+    }
+
+    pub fn send_all_ordered(&self, send_buf: crate::MsgsToSend) {
+        let send_buf = send_buf.clone();
+        let packet_sender = self.packet_sender.clone();
+        thread::spawn(move || {
+            for (addr, msg_str) in send_buf {
+                &packet_sender
+                    .send(Packet::reliable_ordered(addr, msg_str.as_bytes().to_vec(), None))
+                    .unwrap();
+            }
         });
     }
 }
@@ -99,7 +124,7 @@ fn handle_message(msg: &str, sender: &Sender<message::Event>, pack_addr: SocketA
                 });
             }
             _ => {
-                println!("Got an unrecognized message head");
+                println!("Got an unrecognized message head '{}'", msg.head.as_str());
             }
         },
         None => {

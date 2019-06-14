@@ -11,7 +11,7 @@ pub fn parse_msg_str(msg: &str) -> Option<Message> {
     let split: Vec<&str> = msg.split(":").collect();
     if split.len() > 1 {
         let head = split[0].to_string();
-        let body: Vec<String> = split[1].split("&").map(|s| s.to_string()).collect();
+        let body: Vec<String> = split[1].split(";").map(|s| s.to_string()).collect();
         Some(Message { head, body })
     } else {
         None

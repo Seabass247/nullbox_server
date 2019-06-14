@@ -38,6 +38,13 @@ margin_right = 406.0
 margin_bottom = 119.0
 text = "127.0.0.1:12345"
 
+[node name="ClientPortBox" type="TextEdit" parent="Control"]
+margin_left = 440.0
+margin_top = 100.0
+margin_right = 500.0
+margin_bottom = 119.0
+text = "12346"
+
 [node name="RichTextLabel" type="RichTextLabel" parent="Control"]
 margin_left = 210.0
 margin_top = 60.0

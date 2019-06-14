@@ -12,6 +12,8 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::{thread, time};
 
+type MsgsToSend = Vec<(SocketAddr, String)>;
+
 fn main() {
     println!(
         "NullBox Server. Listening for connections on {}",
@@ -26,7 +28,8 @@ fn main() {
     server.start_packet_handling(s1);
     // Main game loop
     loop {
-        //println!("LOOP!");
+        let mut send_buf: MsgsToSend = Vec::new();
+
         match r1.try_recv() {
             Ok(event) => {
                 match event {
@@ -49,11 +52,16 @@ fn main() {
                                 z: 0.0,
                             },
                         };
+                        // Add the server response to the send buffer.
+                        let to_send = format!("0#/root/MainMenu>reg:success;{}", id);
+                        send_buf.push((address, to_send));
                         // Add the player to a dict of players associated with their unique id.
                         players.insert(id, new_player);
                     }
                     Event::PlayerMove { id, new_pos } => {
-                        println!("Main loop: Move a player");
+                        if let Some(plr) = players.get_mut(&id) {
+                            plr.pos = new_pos;
+                        }
                     }
                 }
             }
@@ -65,8 +73,12 @@ fn main() {
                 .values()
                 .map(|p| format!("{}={};", p.id, p.pos.to_string()))
                 .collect();
-            println!("locations {}", player_locations)
+            let to_send = format!("0#/root/Game>upd_ply:{}", player_locations);
+            send_buf.push((player.ip, to_send));
+            println!("locations {}", player_locations);
         }
+
+        server.send_all(send_buf);
 
         std::thread::sleep_ms(10);
     }

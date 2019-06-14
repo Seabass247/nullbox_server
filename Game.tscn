@@ -1,11 +1,11 @@
-[gd_scene load_steps=16 format=2]
+[gd_scene load_steps=11 format=2]
 
 [ext_resource path="res://scripts/Game.gd" type="Script" id=1]
 [ext_resource path="res://assets/grass/Ground03_col.jpg" type="Texture" id=2]
 [ext_resource path="res://assets/grass/Ground03_disp.jpg" type="Texture" id=3]
 [ext_resource path="res://assets/grass/Ground03_nrm.jpg" type="Texture" id=4]
 [ext_resource path="res://assets/grass/Ground03_rgh.jpg" type="Texture" id=5]
-[ext_resource path="res://Player.gd" type="Script" id=6]
+[ext_resource path="res://Player.tscn" type="PackedScene" id=6]
 
 [sub_resource type="CubeMesh" id=1]
 size = Vector3( 1000, 1, 1000 )
@@ -35,25 +35,126 @@ uv1_triplanar = true
 [sub_resource type="ConcavePolygonShape" id=3]
 data = PoolVector3Array( -50, 0.5, 50, 50, 0.5, 50, -50, -0.5, 50, 50, 0.5, 50, 50, -0.5, 50, -50, -0.5, 50, 50, 0.5, -50, -50, 0.5, -50, 50, -0.5, -50, -50, 0.5, -50, -50, -0.5, -50, 50, -0.5, -50, 50, 0.5, 50, 50, 0.5, -50, 50, -0.5, 50, 50, 0.5, -50, 50, -0.5, -50, 50, -0.5, 50, -50, 0.5, -50, -50, 0.5, 50, -50, -0.5, -50, -50, 0.5, 50, -50, -0.5, 50, -50, -0.5, -50, 50, 0.5, 50, -50, 0.5, 50, 50, 0.5, -50, -50, 0.5, 50, -50, 0.5, -50, 50, 0.5, -50, -50, -0.5, 50, 50, -0.5, 50, -50, -0.5, -50, 50, -0.5, 50, 50, -0.5, -50, -50, -0.5, -50 )
 
-[sub_resource type="BoxShape" id=4]
-extents = Vector3( 0.5, 1, 0.5 )
+[sub_resource type="GDScript" id=4]
+script/source = "extends KinematicBody
 
-[sub_resource type="CapsuleMesh" id=5]
-radius = 0.5
+const GRAVITY = -24.8
+var vel = Vector3()
+const MAX_SPEED = 20
+const JUMP_SPEED = 18
+const ACCEL = 4.5
 
-[sub_resource type="CubeMesh" id=6]
-size = Vector3( 1, 0.5, 0.25 )
+var dir = Vector3()
+var laminar
 
-[sub_resource type="SpatialMaterial" id=7]
-albedo_color = Color( 0, 0, 0, 1 )
+const DEACCEL= 16
+const MAX_SLOPE_ANGLE = 40
 
-[sub_resource type="CylinderMesh" id=8]
-top_radius = 0.4
-bottom_radius = 0.5
-height = 0.65
+var camera
+var rotation_helper
+var global
 
-[sub_resource type="SpatialMaterial" id=9]
-albedo_color = Color( 0.643137, 0.137255, 0.137255, 1 )
+var MOUSE_SENSITIVITY = 0.05
+
+signal moved
+
+func _ready():
+    laminar = get_node(\"/root/Global\").laminar
+    laminar.send(\"game:foo\")
+    global = get_node(\"/root/Global\")
+    rotation_helper = get_node(\"Yaw\")
+    camera = get_node(\"Yaw/Camera\")
+    self.connect(\"moved\", self, \"on_moved\")
+    Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+func _physics_process(delta):
+    process_input(delta)
+    process_movement(delta)
+
+func process_input(delta):
+	
+    # ----------------------------------
+    # Walking
+    dir = Vector3()
+    var cam_xform = camera.get_global_transform()
+
+    var input_movement_vector = Vector2()
+
+    if Input.is_action_pressed(\"forward\"):
+        input_movement_vector.y += 1
+        emit_signal(\"moved\")
+    if Input.is_action_pressed(\"backward\"):
+        input_movement_vector.y -= 1
+        emit_signal(\"moved\")
+    if Input.is_action_pressed(\"left\"):
+        input_movement_vector.x -= 1
+        emit_signal(\"moved\")
+    if Input.is_action_pressed(\"right\"):
+        input_movement_vector.x += 1
+        emit_signal(\"moved\")
+
+    input_movement_vector = input_movement_vector.normalized()
+
+    dir += -cam_xform.basis.z.normalized() * input_movement_vector.y
+    dir += cam_xform.basis.x.normalized() * input_movement_vector.x
+    # ----------------------------------
+
+    # ----------------------------------
+    # Jumping
+    if is_on_floor():
+        if Input.is_action_just_pressed(\"movement_jump\"):
+            vel.y = JUMP_SPEED
+    # ----------------------------------
+
+    # ----------------------------------
+    # Capturing/Freeing the cursor
+    if Input.is_action_just_pressed(\"ui_cancel\"):
+        if Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE:
+            Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+        else:
+            Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+    # ----------------------------------
+
+func process_movement(delta):
+    dir.y = 0
+    dir = dir.normalized()
+
+    vel.y += delta * GRAVITY
+
+    var hvel = vel
+    hvel.y = 0
+
+    var target = dir
+    target *= MAX_SPEED
+
+    var accel
+    if dir.dot(hvel) > 0:
+        accel = ACCEL
+    else:
+        accel = DEACCEL
+
+    hvel = hvel.linear_interpolate(target, accel * delta)
+    vel.x = hvel.x
+    vel.z = hvel.z
+    vel = move_and_slide(vel, Vector3(0, 1, 0), 0.05, 4, deg2rad(MAX_SLOPE_ANGLE))
+
+func _input(event):
+    if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
+        rotation_helper.rotate_x(deg2rad(event.relative.y * MOUSE_SENSITIVITY))
+        self.rotate_y(deg2rad(event.relative.x * MOUSE_SENSITIVITY * -1))
+        camera.rotate_x(-deg2rad(event.relative.y * MOUSE_SENSITIVITY * -1))
+        var camera_rot = rotation_helper.rotation_degrees
+        camera_rot.x = clamp(camera_rot.x, -70, 70)
+        rotation_helper.rotation_degrees = camera_rot
+
+func on_network_received(data):
+    print(\"Player got data: \", data)
+
+func on_moved():
+    var pos = self.get_global_transform().origin
+    var fields = String(global.network_id) + \";\" + String(pos.x) + \";\" + String(pos.y) + \";\" + String(pos.z)
+    laminar.send(\"plrmov:\" + fields)
+    "
 
 [node name="Game" type="Spatial"]
 script = ExtResource( 1 )
@@ -69,34 +170,6 @@ material/0 = SubResource( 2 )
 [node name="CollisionShape" type="CollisionShape" parent="Ground/StaticBody"]
 shape = SubResource( 3 )
 
-[node name="Player" type="KinematicBody" parent="."]
-script = ExtResource( 6 )
-
-[node name="CollisionShape" type="CollisionShape" parent="Player"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0 )
-shape = SubResource( 4 )
-
-[node name="Yaw" type="Spatial" parent="Player"]
-editor/display_folded = true
-
-[node name="body" type="MeshInstance" parent="Player/Yaw"]
-transform = Transform( 1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 1, 0 )
-mesh = SubResource( 5 )
-material/0 = null
-
-[node name="shades" type="MeshInstance" parent="Player/Yaw"]
-transform = Transform( 1, 0, 0, 0, 0.965926, -0.258819, 0, 0.258819, 0.965926, 0, 1.40474, 0.396308 )
-layers = 2
-mesh = SubResource( 6 )
-material/0 = SubResource( 7 )
-
-[node name="Camera" type="Camera" parent="Player/Yaw"]
-transform = Transform( -1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 1.524, 0 )
-cull_mask = 1048573
-
-[node name="Hat" type="MeshInstance" parent="Player/Yaw"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.07865, 0 )
-layers = 2
-mesh = SubResource( 8 )
-material/0 = SubResource( 9 )
+[node name="Player" parent="." instance=ExtResource( 6 )]
+script = SubResource( 4 )
 
