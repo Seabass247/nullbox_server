@@ -7,7 +7,7 @@ authors = ["Sebastian <sebjfk@gmail.com>"]
 crate-type = ["cdylib"]
 
 [dependencies]
-gdnative = { path = "/home/sebastian/Documents/godot-rust/gdnative" }
+gdnative = { git = "https://github.com/GodotNativeTools/godot-rust" }
 nullbox_core = { path = "nullbox_core" }
 laminar = "0.2.2"
 serde = "1.0"
