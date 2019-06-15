@@ -25,7 +25,10 @@ pub enum Event {
         address: SocketAddr,
     },
     PlayerMove {
-        id: i32,
+        address: SocketAddr,
         new_pos: player::Position,
     },
+    PlayerDisconnect {
+        address: SocketAddr,
+    }
 }

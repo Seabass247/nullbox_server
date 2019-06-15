@@ -19,7 +19,6 @@ pub struct Server {
     packet_sender: Sender<Packet>,
     event_receiver: Receiver<SocketEvent>,
     _polling_thread: thread::JoinHandle<Result<(), ErrorKind>>,
-    players: Vec<Player>,
 }
 
 impl Server {
@@ -31,7 +30,6 @@ impl Server {
             packet_sender,
             event_receiver,
             _polling_thread: polling_thread,
-            players: Vec::new(),
         }
     }
 
@@ -122,7 +120,7 @@ fn handle_message(msg: &str, sender: &Sender<message::Event>, pack_addr: SocketA
             }
             "plrmov" => {
                 sender.send(message::Event::PlayerMove {
-                    id: msg.body[0].parse::<i32>().unwrap(),
+                    address: pack_addr,
                     new_pos: Position {
                         x: msg.body[1].parse::<f32>().unwrap(),
                         y: msg.body[2].parse::<f32>().unwrap(),

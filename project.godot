@@ -22,6 +22,7 @@ config/icon="res://icon.png"
 [autoload]
 
 Global="*res://scripts/global.gd"
+Laminar="*res://laminar_client.gdns"
 
 [input]
 

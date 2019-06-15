@@ -169,10 +169,11 @@ impl Client {
                             )
                         }
                         byte_array = godot::ByteArray::new();
-                        godot_print!("Laminar: Got packet from {}", packet.addr());
+                        //godot_print!("Laminar: Got packet from {}", packet.addr());
                     }
                     Ok(SocketEvent::Timeout(address)) => {
                         godot_print!("Laminar: Connection to server {} timed out.", address);
+                        //break;
                     }
                     Ok(_) => {
                         godot_print!("Laminar: got nothing");
@@ -208,7 +209,7 @@ impl Laminar {
 
     #[export]
     fn _ready(&self, _owner: gdnative::Node) {
-        godot_print!("hello, world.")
+        godot_print!("Laminar: plugin ready");
     }
 
     #[export]
@@ -307,6 +308,14 @@ impl Laminar {
     #[export]
     fn new_connection(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
         // setup an udp socket and bind it to the client address.
+        if self.client.is_some() {
+            let mut client = self.client.take().unwrap();
+            let server_address: SocketAddr = address.to_string().parse().unwrap();
+            client.server_address = server_address;
+            self.client = Some(client);
+            return;
+        }
+        
         let mut client_socket = SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             get_available_port().unwrap(),

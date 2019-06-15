@@ -20,7 +20,7 @@ fn main() {
         server::server_address()
     );
     let mut unique_ids: Vec<i32> = Vec::new();
-    let mut players: HashMap<i32, Player> = HashMap::new();
+    let mut players: HashMap<SocketAddr, Player> = HashMap::new();
 
     let mut server = Server::new();
     // set up or `Server` that will receive the messages we send with the `Client`
@@ -52,12 +52,15 @@ fn main() {
                         let to_send = format!("0#/root/MainMenu>reg_success;{}", id);
                         send_buf.push((address, to_send));
                         // Add the player to a dict of players associated with their unique id.
-                        players.insert(id, new_player);
+                        players.insert(address, new_player);
                     }
-                    Event::PlayerMove { id, new_pos } => {
-                        if let Some(plr) = players.get_mut(&id) {
+                    Event::PlayerMove { address, new_pos } => {
+                        if let Some(plr) = players.get_mut(&address) {
                             plr.pos = Some(new_pos);
                         }
+                    }
+                    Event::PlayerDisconnect { address } => {
+                        players.remove_entry(&address);
                     }
                 }
             }
@@ -68,6 +71,7 @@ fn main() {
             if let Some(pos) = &player.pos {
                 let player_locations: String = players
                     .values()
+                    .filter(|p| p.pos.is_some())
                     .map(|p| format!("{}={};", p.id, p.pos.clone().unwrap()))
                     .collect();
                 let to_send = format!("0#/root/Game>upd_ply;{}", player_locations);
