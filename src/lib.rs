@@ -12,6 +12,7 @@ use laminar::{ErrorKind, Packet, Socket, SocketEvent};
 use nullbox::DataType;
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::{thread, time};
 
 struct Laminar {
@@ -86,15 +87,19 @@ impl Client {
                         // Fill the data array with fields and their subfield labels and values
                         // Example: "foo=4,3,2;bar=6,3,7" => [ ["foo","4","3","2"], ["bar","6","3","7"] ]
                         let mut data_array = godot::VariantArray::new();
-                        data_body
-                            .split(";")
-                            .for_each(|field| if !field.is_empty() {
+                        data_body.split(";").for_each(|field| {
+                            if !field.is_empty() {
                                 let mut subfield_array = godot::StringArray::new();
-                                field.split(|c| c == '=' || c == ',').for_each(|subfield| if !subfield.is_empty() {
-                                    subfield_array.push(&godot::GodotString::from_str(subfield));
+                                field.split(|c| c == '=' || c == ',').for_each(|subfield| {
+                                    if !subfield.is_empty() {
+                                        subfield_array
+                                            .push(&godot::GodotString::from_str(subfield));
+                                    }
                                 });
-                                data_array.push(&godot::Variant::from_string_array(&subfield_array));
-                            });
+                                data_array
+                                    .push(&godot::Variant::from_string_array(&subfield_array));
+                            }
+                        });
 
                         // If this client has an assigned unique network id, decide whether the recv'd id matches it.
                         if let Some(id) = &self.uid {
@@ -182,6 +187,13 @@ impl Client {
             }
         });
     }
+}
+
+fn get_available_port() -> Option<u16> {
+    (8000..9000).find(|port| match Socket::bind(("127.0.0.1", *port)) {
+        Ok(_) => true,
+        Err(_) => false,
+    })
 }
 
 #[gdnative::methods]
@@ -295,7 +307,11 @@ impl Laminar {
     #[export]
     fn new_connection(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
         // setup an udp socket and bind it to the client address.
-        let (mut socket, packet_sender, event_receiver) = Socket::bind("127.0.0.1:12346").unwrap();
+        let mut client_socket = SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            get_available_port().unwrap(),
+        );
+        let (mut socket, packet_sender, event_receiver) = Socket::bind(client_socket).unwrap();
         let polling_thread = thread::spawn(move || socket.start_polling());
 
         let server_address: SocketAddr = address.to_string().parse().unwrap();

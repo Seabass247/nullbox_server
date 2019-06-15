@@ -9,6 +9,7 @@ pub struct Player {
     pub pos: Option<Position>,
 }
 
+#[derive(Clone)]
 pub struct Position {
     pub x: f32,
     pub y: f32,

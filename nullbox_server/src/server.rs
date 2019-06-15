@@ -1,3 +1,4 @@
+use super::HashMap;
 use crate::message;
 use crate::player::{Player, Position};
 use bincode::{deserialize, serialize};
@@ -7,7 +8,6 @@ use nullbox_core::DataType;
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::{thread, time};
-use super::HashMap;
 
 const SERVER_ADDR: &'static str = "127.0.0.1:12345";
 
@@ -51,7 +51,10 @@ impl Server {
         thread::spawn(move || {
             for (addr, msg_str) in send_buf {
                 &packet_sender
-                    .send(Packet::reliable_unordered(addr, msg_str.as_bytes().to_vec()))
+                    .send(Packet::reliable_unordered(
+                        addr,
+                        msg_str.as_bytes().to_vec(),
+                    ))
                     .unwrap();
             }
         });
@@ -63,7 +66,11 @@ impl Server {
         thread::spawn(move || {
             for (addr, msg_str) in send_buf {
                 &packet_sender
-                    .send(Packet::reliable_ordered(addr, msg_str.as_bytes().to_vec(), None))
+                    .send(Packet::reliable_ordered(
+                        addr,
+                        msg_str.as_bytes().to_vec(),
+                        None,
+                    ))
                     .unwrap();
             }
         });

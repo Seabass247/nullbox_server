@@ -68,7 +68,7 @@ fn main() {
             if let Some(pos) = &player.pos {
                 let player_locations: String = players
                     .values()
-                    .map(|p| format!("{}={};", p.id, pos.to_string()))
+                    .map(|p| format!("{}={};", p.id, p.pos.clone().unwrap()))
                     .collect();
                 let to_send = format!("0#/root/Game>upd_ply;{}", player_locations);
                 send_buf.push((player.ip, to_send));

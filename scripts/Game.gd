@@ -13,12 +13,12 @@ func on_network_received(data):
         for field in data:
             if field[0] == "upd_ply":
                 continue
-            var id = int(field[0])    
+            var id = field[0]  
             var pos_x = float(field[1])
             var pos_y = float(field[2])
             var pos_z = float(field[3])
-            if id != global.network_id:
-                var possible_player_path = "player_" + field[0]
+            if int(id) != global.network_id:
+                var possible_player_path = "player_" + id
                 var pos = Vector3(pos_x, pos_y, pos_z)
                 if self.has_node(NodePath(possible_player_path)):
                     var other_player = get_node(NodePath(possible_player_path))
@@ -28,8 +28,3 @@ func on_network_received(data):
                     add_child(player)
                     player.set_name("player_" + id)
                     player.global_transform.origin = pos
-
-
-
-
-
