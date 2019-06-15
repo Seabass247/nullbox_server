@@ -84,15 +84,15 @@ impl Client {
                         let data_body = data_str_parts[2];
 
                         // Fill the data array with fields and their subfield labels and values
-                        // Example: "foo,4,3,2;bar,6,3,7" => [ ["foo","4","3","2"], ["bar","6","3","7"] ]
+                        // Example: "foo=4,3,2;bar=6,3,7" => [ ["foo","4","3","2"], ["bar","6","3","7"] ]
                         let mut data_array = godot::VariantArray::new();
                         data_body
                             .split(";")
                             .for_each(|field| if !field.is_empty() {
-                                let field_split: Vec<&str> = field.split(",").collect();
                                 let mut subfield_array = godot::StringArray::new();
-                                subfield_array.push(&godot::GodotString::from_str(field_split[0]));
-                                subfield_array.push(&godot::GodotString::from_str(field_split[1]));
+                                field.split(|c| c == '=' || c == ',').for_each(|subfield| if !subfield.is_empty() {
+                                    subfield_array.push(&godot::GodotString::from_str(subfield));
+                                });
                                 data_array.push(&godot::Variant::from_string_array(&subfield_array));
                             });
 
@@ -148,7 +148,7 @@ impl Client {
                                 .unwrap();
                         }
 
-                        // Use godot signal to send data to the target node's callback function.
+                        // Use godot signal to send the data to the target node's callback function.
                         plugin_node.node.emit_signal(
                             godot::GodotString::from_str("recv_data"),
                             &[godot::Variant::from_array(&data_array)],

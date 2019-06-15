@@ -22,10 +22,11 @@ func on_connect():
 	#get_tree().change_scene("res://Game.tscn")
 
 func on_network_received(data):
-	print("MainMenu got data: ", data)
-	var packet = data
-	packet = data.split(";")
-	if (packet[0] == "reg:success"):
-		print("MainMenu: got network id " + packet[1] + " from the server")
-		global.network_id = int(packet[1])
+	
+	var id = int(data[1][0])
+	var status = String(data[0][0])
+	
+	if (status == "reg_success"):
+		print("MainMenu got net id: ", id, " and status: ", status)
+		global.network_id = int(data[1][0])
 		get_tree().change_scene("res://Game.tscn")

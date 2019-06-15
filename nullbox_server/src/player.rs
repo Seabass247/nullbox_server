@@ -6,7 +6,7 @@ pub struct Player {
     pub ip: SocketAddr,
     pub username: String,
     pub id: i32,
-    pub pos: Position,
+    pub pos: Option<Position>,
 }
 
 pub struct Position {

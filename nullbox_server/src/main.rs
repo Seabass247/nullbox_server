@@ -46,21 +46,17 @@ fn main() {
                             ip: address,
                             username,
                             id,
-                            pos: player::Position {
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            },
+                            pos: None,
                         };
                         // Add the server response to the send buffer.
-                        let to_send = format!("0#/root/MainMenu>reg:success;{}", id);
+                        let to_send = format!("0#/root/MainMenu>reg_success;{}", id);
                         send_buf.push((address, to_send));
                         // Add the player to a dict of players associated with their unique id.
                         players.insert(id, new_player);
                     }
                     Event::PlayerMove { id, new_pos } => {
                         if let Some(plr) = players.get_mut(&id) {
-                            plr.pos = new_pos;
+                            plr.pos = Some(new_pos);
                         }
                     }
                 }
@@ -69,13 +65,15 @@ fn main() {
         }
 
         for (id, player) in &players {
-            let player_locations: String = players
-                .values()
-                .map(|p| format!("{}={};", p.id, p.pos.to_string()))
-                .collect();
-            let to_send = format!("0#/root/Game>upd_ply:{}", player_locations);
-            send_buf.push((player.ip, to_send));
-            println!("locations {}", player_locations);
+            if let Some(pos) = &player.pos {
+                let player_locations: String = players
+                    .values()
+                    .map(|p| format!("{}={};", p.id, pos.to_string()))
+                    .collect();
+                let to_send = format!("0#/root/Game>upd_ply;{}", player_locations);
+                send_buf.push((player.ip, to_send));
+                println!("locations {}", player_locations);
+            }
         }
 
         server.send_all(send_buf);

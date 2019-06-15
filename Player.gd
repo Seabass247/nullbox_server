@@ -22,7 +22,6 @@ signal moved
 
 func _ready():
     laminar = get_node("/root/Global").laminar
-    laminar.send("game:foo")
     global = get_node("/root/Global")
     rotation_helper = get_node("Yaw")
     camera = get_node("Yaw/Camera")
