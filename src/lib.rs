@@ -1,5 +1,6 @@
 pub mod client;
 pub mod datatypes;
+pub mod server;
 
 #[macro_use]
 extern crate gdnative as godot;
@@ -18,9 +19,11 @@ use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::net::{IpAddr, Ipv4Addr};
 use std::{thread, time};
+use server::Server;
 
 struct Laminar {
     client: Option<Client>,
+    server: Option<Server>,
     callback: bool,
 }
 
@@ -37,6 +40,7 @@ impl Laminar {
         godot_print!("Laminar: plugin initialized!");
         Laminar {
             client: None,
+            server: None,
             callback: false,
         }
     }
@@ -47,38 +51,81 @@ impl Laminar {
     }
 
     #[export]
-    fn send(&mut self, _owner: gdnative::Node, message: godot::GodotString) {
-        match self.client.take() {
-            Some(mut client) => {
-                client.send(message.to_string());
-                godot_print!("Laminar: send packet: {}", message.to_string());
-                self.client = Some(client);
-            }
-            None => {
-                godot_print!(
-                    "Laminar error: must call function `new_connection` before sending data"
-                );
-            }
-        }
+    fn test(&self, _owner: gdnative::Node, destination: godot::GodotString, array: godot::VariantArray) {
+        godot_print!("Laminar: array: {}", godot::Variant::from_array(&array).to_string());
     }
-    
+
+    // Client only func
     #[export]
-    fn send_vars(&mut self, _owner: gdnative::Node, variant: godot::VariantArray) {
+    fn send_vars(&mut self, _owner: gdnative::Node, destination: godot::GodotString, variant: godot::VariantArray) {
         let variant = godot::Variant::from_array(&variant);
+        let dest = &destination.to_string();
+        let dest_split: Vec<&str> = dest.split(":").collect();
+        let node_path = dest_split[0];
+        // Fail if we dont get a destination formatted "$NODE_PATH:$METHOD"
+        if dest_split.len() <= 1 {
+            godot_print!("Laminar: error trying to parse send destination path");
+            return;
+        }
+        let method = dest_split[1];
         match self.client.take() {
             Some(mut client) => {
-                client.send_vars(VariantTypes::from(variant));
+                client.send_vars(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
                 godot_print!("Laminar: send var packet");
                 self.client = Some(client);
             }
             None => {
-                godot_print!(
-                    "Laminar error: must call function `new_connection` before sending data"
-                );
+                godot_print!("Laminar error: must initialize client before sending data");
             }
         }
     }
 
+    // Server only func
+    #[export]
+    fn send_vars_to(&mut self, _owner: gdnative::Node, player_id: i64, destination: godot::GodotString, variant: godot::VariantArray) {
+        let variant = godot::Variant::from_array(&variant);
+        let dest = &destination.to_string();
+        let dest_split: Vec<&str> = dest.split(":").collect();
+        let node_path = dest_split[0];
+        // Fail if we dont get a destination formatted "$NODE_PATH:$METHOD"
+        if dest_split.len() <= 1 {
+            godot_print!("Laminar: error trying to parse send destination path");
+            return;
+        }
+        let method = dest_split[1];
+        match player_id {
+            0 => {
+                match self.server.take() {
+                    Some(mut server) => {
+                        server.send_to_all(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
+                        godot_print!("Laminar Server: send var packet to all");
+                        self.server = Some(server);
+                    }
+                    None => {
+                        godot_print!(
+                            "Laminar error: must initialize server before sending data"
+                        );
+                    }
+                }         
+            }
+            _ => {
+                match self.server.take() {
+                    Some(mut server) => {
+                        server.send_to(player_id, node_path.to_string(), method.to_string(), VariantTypes::from(variant));
+                        godot_print!("Laminar Server: send var packet to {}", player_id);
+                        self.server = Some(server);
+                    }
+                    None => {
+                        godot_print!(
+                            "Laminar error: must initialize server before sending data"
+                        );
+                    }
+                }                  
+            }
+        }
+    }
+
+    /// Client only func
     #[export]
     fn init_client(&mut self, _owner: gdnative::Node, address: godot::GodotString, context: godot::Node) {
         // setup an udp socket and bind it to the client address.
@@ -115,6 +162,21 @@ impl Laminar {
                     "Laminar: client waiting for connection response from server {}",
                     address.to_string()
                 );
+            },
+            None => {}
+        }
+    }
+
+    /// Server only func
+    #[export]
+    fn init_server(&mut self, _owner: gdnative::Node, port: i64, context: godot::Node) {
+        let server = Server::new(port);
+        self.server = Some(server);
+
+        match self.server.clone() {
+            Some(server) => unsafe {
+                server.start_receiving(_owner, context);
+                godot_print!("Laminar: server waiting for connections");
             },
             None => {}
         }

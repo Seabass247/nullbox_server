@@ -35,7 +35,7 @@ impl From<godot::Variant> for VariantType {
                 let float_arr = variant.to_float32_array();
                 let vec: Vec<f32> = (0..float_arr.len()).map(|i| float_arr.get(i)).collect();
                 VariantType::FloatArray { vec }
-            },
+            }
             godot::VariantType::Bool => VariantType::GodotBool {
                 boolean: variant.to_bool(),
             },
@@ -52,7 +52,7 @@ impl From<godot::Variant> for VariantType {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct VariantTypes(Vec<VariantType>);
+pub struct VariantTypes(pub Vec<VariantType>);
 
 impl From<godot::Variant> for VariantTypes {
     fn from(variant: godot::Variant) -> Self {
@@ -71,34 +71,34 @@ impl From<godot::Variant> for VariantTypes {
 impl VariantType {
     pub fn to_variant(&self) -> godot::Variant {
         match self {
-            VariantType::Vector3 {x,y,z} => {
-                godot::Variant::from_vector3(&godot::Vector3::new(*x,*y,*z))
-            },
-            VariantType::Vector2 {x, y} => {
-                godot::Variant::from_vector2(&godot::Vector2::new(*x,*y))
+            VariantType::Vector3 { x, y, z } => {
+                godot::Variant::from_vector3(&godot::Vector3::new(*x, *y, *z))
             }
-            VariantType::GDString { string } => {
-                godot::Variant::from_str(string)
+            VariantType::Vector2 { x, y } => {
+                godot::Variant::from_vector2(&godot::Vector2::new(*x, *y))
             }
-            VariantType::Int { int } => {
-                godot::Variant::from_i64(*int)
-            }
+            VariantType::GDString { string } => godot::Variant::from_str(string),
+            VariantType::Int { int } => godot::Variant::from_i64(*int),
             VariantType::FloatArray { vec } => {
                 let mut float_arr = godot::Float32Array::new();
                 vec.iter().for_each(|f| float_arr.push(*f));
                 godot::Variant::from_float32_array(&float_arr)
             }
-            VariantType::GodotBool { boolean } => {
-                godot::Variant::from_bool(*boolean)
-            }
+            VariantType::GodotBool { boolean } => godot::Variant::from_bool(*boolean),
             VariantType::StringArr { vec } => {
                 let mut str_arr = godot::StringArray::new();
-                vec.iter().for_each(|s| str_arr.push(&godot::GodotString::from_str(s)));
+                vec.iter()
+                    .for_each(|s| str_arr.push(&godot::GodotString::from_str(s)));
                 godot::Variant::from_string_array(&str_arr)
-            },
-            _ => {
-                godot::Variant::new()
             }
+            _ => godot::Variant::new(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PacketData {
+    pub node_path: String,
+    pub method: String,
+    pub variants: VariantTypes,
 }

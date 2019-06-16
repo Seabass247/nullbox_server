@@ -3,16 +3,15 @@ use crossbeam_channel::{Receiver, Sender};
 use datatypes::{PacketData, VariantType, VariantTypes};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
 use serde_derive::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::net::{IpAddr, Ipv4Addr};
 use std::{thread, time};
 
 #[derive(Clone)]
-pub struct Client {
+pub struct Server {
     pub packet_sender: Sender<Packet>,
-    pub _event_receiver: Receiver<SocketEvent>,
-    pub server_address: SocketAddr,
-    pub uid: Option<String>,
+    pub event_receiver: Receiver<SocketEvent>,
+    pub connections: HashMap<i64, SocketAddr>,
 }
 
 struct ShareNode {
@@ -21,43 +20,85 @@ struct ShareNode {
 
 unsafe impl Send for ShareNode {}
 
-impl Client {
-    pub fn send(&mut self, msg: String) {
-        let raw_data = msg.as_bytes().to_vec();
-        let packet_sender = self.packet_sender.clone();
-        let addr = self.server_address;
-        thread::spawn(move || {
-            &packet_sender
-                .send(Packet::reliable_unordered(addr, raw_data))
-                .unwrap();
-        });
+impl Server {
+    pub fn new(port: i64) -> Self {
+        let address = format!("127.0.0.1:{}", port.to_string());
+        let listen_address: SocketAddr = match address.to_string().parse() {
+            Ok(addr) => addr,
+            Err(_) => {
+                godot_print!("Laminar: Failed to parse port, defaulting to '8080'");
+                "127.0.0.1:8080".to_string().parse().unwrap()
+            }
+        };
+        let (mut socket, packet_sender, event_receiver) = Socket::bind(listen_address).unwrap();
+        let polling_thread = thread::spawn(move || socket.start_polling());
+
+        Server {
+            packet_sender,
+            event_receiver,
+            connections: HashMap::new(),
+        }
     }
 
-    pub fn send_vars(&mut self, node_path: String, method: String, data_types: VariantTypes) {
+    pub fn send_to_all(&mut self, node_path: String, method: String, variants: VariantTypes) {
         let packet = PacketData {
             node_path,
             method,
-            variants: data_types,
+            variants,
         };
 
         let serialized = serialize(&packet);
-        let packet_sender = self.packet_sender.clone();
-        let addr = self.server_address;
 
         match serialized {
             Ok(raw_data) => {
-                thread::spawn(move || {
-                    &packet_sender
-                        .send(Packet::reliable_unordered(addr, raw_data))
-                        .unwrap();
-                });
+                for addr in self.connections.values() {
+                    let packet_sender = self.packet_sender.clone();
+                    let raw_data = raw_data.clone();
+                    let addr = addr.clone();
+                    thread::spawn(move || {
+                        &packet_sender
+                            .send(Packet::reliable_unordered(addr, raw_data))
+                            .unwrap();
+                    });
+                }
             }
             Err(e) => println!("Some error occurred: {:?}", e),
         }
     }
 
-    pub unsafe fn start_receiving(self, owner: godot::Node, context: godot::Node) {
-        let mut byte_array = godot::ByteArray::new();
+    pub fn send_to(
+        &mut self,
+        player_id: i64,
+        node_path: String,
+        method: String,
+        variants: VariantTypes,
+    ) {
+        let packet = PacketData {
+            node_path,
+            method,
+            variants,
+        };
+
+        let serialized = serialize(&packet);
+
+        if let Some(dest_addr) = self.connections.get(&player_id) {
+            match serialized {
+                Ok(raw_data) => {
+                    let packet_sender = self.packet_sender.clone();
+                    let raw_data = raw_data.clone();
+                    let addr = dest_addr.clone();
+                    thread::spawn(move || {
+                        &packet_sender
+                            .send(Packet::reliable_unordered(addr, raw_data))
+                            .unwrap();
+                    });
+                }
+                Err(e) => println!("Some error occurred: {:?}", e),
+            }
+        }
+    }
+
+    pub unsafe fn start_receiving(mut self, owner: godot::Node, context: godot::Node) {
         let mut plugin_node = ShareNode {
             node: owner.clone(),
         };
@@ -67,9 +108,11 @@ impl Client {
 
         thread::spawn(move || {
             loop {
-                match self._event_receiver.recv() {
+                match self.event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();
+
+                        self.connections.insert(1, packet.addr());
 
                         let data: PacketData = match deserialize(&received_data) {
                             Ok(data) => data,
@@ -84,7 +127,7 @@ impl Client {
                             .unwrap()
                             .get_node(godot::NodePath::from_str(&data.node_path));
 
-                        // If the engine cannot find node by our path, skip.
+                        // If the engine cannot find node by our path, drop our data.
                         let target = match target {
                             Some(target) => target,
                             _ => continue,
@@ -130,14 +173,14 @@ impl Client {
                                 godot::GodotString::from_str(&target_method),
                             )
                         }
-                        godot_print!("Laminar: Client got packet from {}", packet.addr());
+                        godot_print!("Laminar: Server got packet from {}", packet.addr());
                     }
                     Ok(SocketEvent::Timeout(address)) => {
-                        godot_print!("Laminar: Connection to server {} timed out.", address);
+                        godot_print!("Laminar: Connection to client {} timed out.", address);
                         //break;
                     }
                     Ok(_) => {
-                        godot_print!("Laminar: Got nothing");
+                        godot_print!("Laminar: got nothing");
                     }
                     Err(e) => {
                         godot_print!(
