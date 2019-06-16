@@ -1,4 +1,5 @@
 pub mod client;
+pub mod datatypes;
 
 #[macro_use]
 extern crate gdnative as godot;
@@ -9,6 +10,7 @@ extern crate nullbox_core as nullbox;
 extern crate serde_derive;
 
 use bincode::{deserialize, serialize};
+use client::Client;
 use crossbeam_channel::{Receiver, Sender};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
 use nullbox::DataType;
@@ -16,7 +18,6 @@ use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::net::{IpAddr, Ipv4Addr};
 use std::{thread, time};
-use client::Client;
 
 struct Laminar {
     client: Option<Client>,
@@ -71,7 +72,7 @@ impl Laminar {
             self.client = Some(client);
             return;
         }
-        
+
         let mut client_socket = SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             get_available_port().unwrap(),
@@ -93,12 +94,14 @@ impl Laminar {
         match self.client.clone() {
             Some(client) => unsafe {
                 client.start_receiving(_owner, context);
-                godot_print!("Laminar: client waiting for connection response from server {}", address.to_string());
+                godot_print!(
+                    "Laminar: client waiting for connection response from server {}",
+                    address.to_string()
+                );
             },
             None => {}
         }
     }
-
 }
 
 impl godot::NativeClass for Laminar {
