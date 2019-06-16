@@ -169,8 +169,8 @@ impl Laminar {
 
     /// Server only func
     #[export]
-    fn init_server(&mut self, _owner: gdnative::Node, port: i64, context: godot::Node) {
-        let server = Server::new(port);
+    fn init_server(&mut self, _owner: gdnative::Node, port: godot::GodotString, context: godot::Node) {
+        let server = Server::new(port.to_string());
         self.server = Some(server);
 
         match self.server.clone() {

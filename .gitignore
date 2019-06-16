@@ -15,6 +15,9 @@ export_presets.cfg
 /nullbox_core/target/
 /nullbox_core/target/Cargo.lock
 
+*.pck
+*.x86_64
+*.64
 
 #Added by cargo
 #

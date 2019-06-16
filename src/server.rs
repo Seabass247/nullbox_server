@@ -21,8 +21,8 @@ struct ShareNode {
 unsafe impl Send for ShareNode {}
 
 impl Server {
-    pub fn new(port: i64) -> Self {
-        let address = format!("127.0.0.1:{}", port.to_string());
+    pub fn new(port: String) -> Self {
+        let address = format!("127.0.0.1:{}", port);
         let listen_address: SocketAddr = match address.to_string().parse() {
             Ok(addr) => addr,
             Err(_) => {
