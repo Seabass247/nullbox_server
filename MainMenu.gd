@@ -9,10 +9,7 @@ func _ready():
 	get_node("Control/Button").connect("pressed", self, "on_connect")
 	laminar = get_node("/root/Global").laminar
 	address = get_node("Control/ServerAddrBox").text.strip_edges()
-	var msg = "gaga"
-	var arr = [5, "six"]
-	laminar.test("gaga" as String, arr)
-	
+
 func on_connect():
 	address = get_node("Control/ServerAddrBox").text.strip_edges()
 	username = get_node("Control/UsernameBox").text
@@ -28,7 +25,5 @@ func _on_net_server_response(data):
 	
 	print("Server connect response: ", data)
 	
-	if (false):
-		#print("MainMenu got net id: ", id, " and status: ", status)
-		#global.network_id = int(data[1][0])
+	if (data[0] == "success"):
 		get_tree().change_scene("res://Game.tscn")

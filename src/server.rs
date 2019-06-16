@@ -11,7 +11,7 @@ use std::{thread, time};
 pub struct Server {
     pub packet_sender: Sender<Packet>,
     pub event_receiver: Receiver<SocketEvent>,
-    pub connections: HashMap<i64, SocketAddr>,
+    pub player_ids: HashMap<SocketAddr, i64>,
 }
 
 struct ShareNode {
@@ -36,7 +36,7 @@ impl Server {
         Server {
             packet_sender,
             event_receiver,
-            connections: HashMap::new(),
+            player_ids: HashMap::new(),
         }
     }
 
@@ -51,7 +51,7 @@ impl Server {
 
         match serialized {
             Ok(raw_data) => {
-                for addr in self.connections.values() {
+                for addr in self.player_ids.keys() {
                     let packet_sender = self.packet_sender.clone();
                     let raw_data = raw_data.clone();
                     let addr = addr.clone();
@@ -73,6 +73,7 @@ impl Server {
         method: String,
         variants: VariantTypes,
     ) {
+        godot_print!("Laminar ######: send_to()");
         let packet = PacketData {
             node_path,
             method,
@@ -80,20 +81,27 @@ impl Server {
         };
 
         let serialized = serialize(&packet);
+        godot_print!("Laminar ######: let serialized = serialize(&packet)");
 
-        if let Some(dest_addr) = self.connections.get(&player_id) {
-            match serialized {
-                Ok(raw_data) => {
-                    let packet_sender = self.packet_sender.clone();
-                    let raw_data = raw_data.clone();
-                    let addr = dest_addr.clone();
-                    thread::spawn(move || {
-                        &packet_sender
-                            .send(Packet::reliable_unordered(addr, raw_data))
-                            .unwrap();
-                    });
-                }
-                Err(e) => println!("Some error occurred: {:?}", e),
+        // Send packet to the address that's associate with id 'player_id'
+        for (addr, id) in &self.player_ids {
+            godot_print!("Laminar ######: for (addr, id) in &self.player_ids");
+            if id == &player_id {
+                godot_print!("Laminar ######:  id == &player_id");
+                match &serialized {
+                    Ok(raw_data) => {
+                        godot_print!("Laminar Server: found addr for player id");
+                        let packet_sender = self.packet_sender.clone();
+                        let raw_data = raw_data.clone();
+                        let addr = addr.clone();
+                        thread::spawn(move || {
+                            &packet_sender
+                                .send(Packet::reliable_unordered(addr, raw_data))
+                                .unwrap();
+                        });
+                    }
+                    Err(_) => println!("Some error occurred serializing"),
+                }           
             }
         }
     }
@@ -107,12 +115,24 @@ impl Server {
         };
 
         thread::spawn(move || {
+            let mut unique_client_id: i64 = 0;
+            let mut current_id: i64 = 0;
             loop {
                 match self.event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();
 
-                        self.connections.insert(1, packet.addr());
+                        // If this address has no known player id instance associated with it, give it a unique id.
+                        if let Some(id) = self.player_ids.get(&packet.addr()) {
+                            current_id = *id;
+                        }
+                        
+                        // No known id for this packet address, let's get a new id
+                        if self.player_ids.get(&packet.addr()).is_none() {
+                            unique_client_id += 1;
+                            current_id = unique_client_id;
+                            self.player_ids.insert(packet.addr(), current_id,);
+                        }
 
                         let data: PacketData = match deserialize(&received_data) {
                             Ok(data) => data,
@@ -161,7 +181,7 @@ impl Server {
                         // Send the variants to the target node and method using godot signals
                         plugin_node.node.emit_signal(
                             godot::GodotString::from_str("recv_data"),
-                            &[godot::Variant::from_array(&var_array)],
+                            &[godot::Variant::from_i64(current_id), godot::Variant::from_array(&var_array)],
                         );
 
                         // Disconnect the callback signal from the packet's specified destination node.

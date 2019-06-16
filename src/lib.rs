@@ -51,8 +51,8 @@ impl Laminar {
     }
 
     #[export]
-    fn test(&self, _owner: gdnative::Node, destination: godot::GodotString, array: godot::VariantArray) {
-        godot_print!("Laminar: array: {}", godot::Variant::from_array(&array).to_string());
+    fn test(&mut self, _owner: gdnative::Node, player_id: i64, destination: godot::GodotString, variant: godot::VariantArray) {
+        godot_print!("Laminar: test: {}", player_id.to_string());
     }
 
     // Client only func
@@ -82,7 +82,7 @@ impl Laminar {
 
     // Server only func
     #[export]
-    fn send_vars_to(&mut self, _owner: gdnative::Node, player_id: i64, destination: godot::GodotString, variant: godot::VariantArray) {
+    fn send_to(&mut self, _owner: gdnative::Node, player_id: i64, destination: godot::GodotString, variant: godot::VariantArray) {
         let variant = godot::Variant::from_array(&variant);
         let dest = &destination.to_string();
         let dest_split: Vec<&str> = dest.split(":").collect();

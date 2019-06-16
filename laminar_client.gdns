@@ -3,6 +3,7 @@
 [sub_resource type="GDNativeLibrary" id=1]
 config_file = Object(ConfigFile,"script":null)
 
+reloadable = false
 entry/X11.64 = "res://target/debug/libnull_box.so"
 entry/X11.32 = "res://target/debug/libnull_box.so"
 dependency/X11.64 = [  ]
