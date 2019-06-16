@@ -1,7 +1,7 @@
 use bincode::{deserialize, serialize};
 use crossbeam_channel::{Receiver, Sender};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
-use nullbox::DataType;
+use datatypes::{VariantType, VariantTypes};
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::net::{IpAddr, Ipv4Addr};
@@ -31,6 +31,23 @@ impl Client {
                 .send(Packet::reliable_unordered(addr, raw_data))
                 .unwrap();
         });
+    }
+
+    pub fn send_vars(&mut self, data_types: VariantTypes) {
+        let serialized = serialize(&data_types);
+        let packet_sender = self.packet_sender.clone();
+        let addr = self.server_address;
+
+        match serialized {
+            Ok(raw_data) => {
+                thread::spawn(move || {
+                    &packet_sender
+                        .send(Packet::reliable_unordered(addr, raw_data))
+                        .unwrap();
+                });
+            }
+            Err(e) => println!("Some error occurred: {:?}", e),
+        }        
     }
 
     pub unsafe fn start_receiving(self, owner: godot::Node, context: godot::Node) {

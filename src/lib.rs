@@ -13,7 +13,7 @@ use bincode::{deserialize, serialize};
 use client::Client;
 use crossbeam_channel::{Receiver, Sender};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
-use nullbox::DataType;
+use datatypes::{VariantType, VariantTypes};
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::net::{IpAddr, Ipv4Addr};
@@ -52,6 +52,23 @@ impl Laminar {
             Some(mut client) => {
                 client.send(message.to_string());
                 godot_print!("Laminar: send packet: {}", message.to_string());
+                self.client = Some(client);
+            }
+            None => {
+                godot_print!(
+                    "Laminar error: must call function `new_connection` before sending data"
+                );
+            }
+        }
+    }
+    
+    #[export]
+    fn send_vars(&mut self, _owner: gdnative::Node, variant: godot::VariantArray) {
+        let variant = godot::Variant::from_array(&variant);
+        match self.client.take() {
+            Some(mut client) => {
+                client.send_vars(VariantTypes::from(variant));
+                godot_print!("Laminar: send var packet");
                 self.client = Some(client);
             }
             None => {
