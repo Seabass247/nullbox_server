@@ -16,7 +16,7 @@ func on_connect():
 	address = get_node("Control/ServerAddrBox").text.strip_edges()
 	username = get_node("Control/UsernameBox").text
 	global = get_node("/root/Global")
-	laminar.init_client(address as String, self as Node)
+	laminar.init_client(address as String)
 	var pack: Array = ["register:", username]
 	laminar.send("/root/Game:player_connected" as String, pack)
 	

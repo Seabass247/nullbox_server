@@ -46,7 +46,7 @@ impl Client {
         }
     }
 
-    pub unsafe fn start_receiving(self, owner: godot::Node, context: godot::Node) {
+    pub unsafe fn start_receiving(self, owner: godot::Node) {
         let mut plugin_node = ShareNode {
             node: owner.clone(),
         };
@@ -59,6 +59,7 @@ impl Client {
                         while let Ok(time) = rx_sleep.try_recv() {
                             godot_print!("LAMINAR SLEEP");
                             std::thread::sleep(time);
+                            continue;
                         }
                         let received_data: &[u8] = packet.payload();
 

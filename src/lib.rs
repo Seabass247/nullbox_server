@@ -142,7 +142,7 @@ impl Laminar {
 
     /// Client only func
     #[export]
-    fn init_client(&mut self, _owner: gdnative::Node, address: godot::GodotString, context: godot::Node) {
+    fn init_client(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
         // setup an udp socket and bind it to the client address.
         if self.client.is_some() {
             let mut client = self.client.take().unwrap();
@@ -176,7 +176,7 @@ impl Laminar {
 
         match self.client.clone() {
             Some(client) => unsafe {
-                client.start_receiving(_owner, context);
+                client.start_receiving(_owner);
                 godot_print!(
                     "Laminar: client waiting for connection response from server {}",
                     address.to_string()
@@ -188,13 +188,13 @@ impl Laminar {
 
     /// Server only func
     #[export]
-    fn init_server(&mut self, _owner: gdnative::Node, port: godot::GodotString, context: godot::Node) {
+    fn init_server(&mut self, _owner: gdnative::Node, port: godot::GodotString) {
         let server = Server::new(port.to_string());
         self.server = Some(server);
 
         match self.server.clone() {
             Some(server) => unsafe {
-                server.start_receiving(_owner, context);
+                server.start_receiving(_owner);
                 godot_print!("Laminar: server waiting for connections");
             },
             None => {}

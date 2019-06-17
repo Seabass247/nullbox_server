@@ -119,7 +119,7 @@ impl Server {
         }
     }
 
-    pub unsafe fn start_receiving(mut self, owner: godot::Node, context: godot::Node) {
+    pub unsafe fn start_receiving(mut self, owner: godot::Node) {
         let mut plugin_node = ShareNode {
             node: owner.clone(),
         };
