@@ -23,17 +23,6 @@ struct ShareNode {
 unsafe impl Send for ShareNode {}
 
 impl Client {
-    pub fn send(&mut self, msg: String) {
-        let raw_data = msg.as_bytes().to_vec();
-        let packet_sender = self.packet_sender.clone();
-        let addr = self.server_address;
-        thread::spawn(move || {
-            &packet_sender
-                .send(Packet::reliable_unordered(addr, raw_data))
-                .unwrap();
-        });
-    }
-
     pub fn send_vars(&mut self, node_path: String, method: String, data_types: VariantTypes) {
         let packet = PacketData {
             node_path,
@@ -58,23 +47,19 @@ impl Client {
     }
 
     pub unsafe fn start_receiving(self, owner: godot::Node, context: godot::Node) {
-        let mut byte_array = godot::ByteArray::new();
         let mut plugin_node = ShareNode {
             node: owner.clone(),
-        };
-        let mut context = ShareNode {
-            node: context.clone(),
         };
         let rx_sleep = self.recv_sleep.1.clone();
 
         thread::spawn(move || {
             loop {
-                while let Ok(time) = rx_sleep.try_recv() {
-                    godot_print!("LAMINAR SLEEP");
-                    std::thread::sleep(time);
-                }
                 match self._event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
+                        while let Ok(time) = rx_sleep.try_recv() {
+                            godot_print!("LAMINAR SLEEP");
+                            std::thread::sleep(time);
+                        }
                         let received_data: &[u8] = packet.payload();
 
                         let data: PacketData = match deserialize(&received_data) {
@@ -82,7 +67,7 @@ impl Client {
                             Err(_) => continue,
                         };
 
-                        let target = context
+                        let target = plugin_node
                             .node
                             .get_tree()
                             .unwrap()

@@ -123,9 +123,6 @@ impl Server {
         let mut plugin_node = ShareNode {
             node: owner.clone(),
         };
-        let mut context = ShareNode {
-            node: context.clone(),
-        };
         let tx_player = self.tx_player.clone();
         let mut players = self.player_ids.clone();
 
@@ -155,7 +152,7 @@ impl Server {
                             Err(_) => continue,
                         };
 
-                        let target = context
+                        let target = plugin_node
                             .node
                             .get_tree()
                             .unwrap()
