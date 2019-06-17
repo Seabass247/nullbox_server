@@ -107,10 +107,8 @@ func _input(event):
         camera_rot.x = clamp(camera_rot.x, -70, 70)
         rotation_helper.rotation_degrees = camera_rot
 
-func on_network_received(data):
-    print("Player got data: ", data)
-
 func on_moved():
     var pos = self.get_global_transform().origin
+    laminar.send("/root/Game:player_pos" as String, [pos])
 
     

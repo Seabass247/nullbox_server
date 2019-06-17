@@ -16,10 +16,7 @@ func on_connect():
 	global = get_node("/root/Global")
 	laminar.init_client(address as String, self as Node)
 	var pack: Array = ["register:", username]
-	laminar.send_vars("/root/Game:player_connected" as String, pack)
-	#var got_packet: PoolByteArray = laminar.get_packet()
-	#print("Got packet: [", got_packet.get_string_from_utf8(),"]")
-	#get_tree().change_scene("res://Game.tscn")
+	laminar.send("/root/Game:player_connected" as String, pack)
 
 func _on_net_server_response(data):
 	

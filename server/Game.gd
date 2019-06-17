@@ -13,3 +13,6 @@ func _ready():
 func _on_net_player_connected(id: int, data):
 	print("New player connected! id= ", id, ", name=", data[1])
 	laminar.send_to(id as int, "/root/MainMenu:server_response" as String, ["success"])
+	
+func _on_net_player_pos(id: int, data):
+	print("player_", id, ": pos=", data[0])
