@@ -95,7 +95,7 @@ impl Laminar {
         let method = dest_split[1];
         match player_id {
             0 => {
-                match self.server.take() {
+                match self.server.clone() {
                     Some(mut server) => {
                         server.send_to_all(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
                         godot_print!("Laminar Server: send var packet to all");
@@ -109,7 +109,7 @@ impl Laminar {
                 }         
             }
             _ => {
-                match self.server.take() {
+                match self.server.clone() {
                     Some(mut server) => {
                         server.send_to(player_id, node_path.to_string(), method.to_string(), VariantTypes::from(variant));
                         godot_print!("Laminar Server: send var packet to {}", player_id);
@@ -120,7 +120,7 @@ impl Laminar {
                             "Laminar error: must initialize server before sending data"
                         );
                     }
-                }                  
+                }
             }
         }
     }

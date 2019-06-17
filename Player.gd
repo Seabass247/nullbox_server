@@ -21,8 +21,7 @@ var MOUSE_SENSITIVITY = 0.05
 signal moved
 
 func _ready():
-    laminar = get_node("/root/Global").laminar
-    global = get_node("/root/Global")
+    laminar = get_node("/root/Laminar")
     rotation_helper = get_node("Yaw")
     camera = get_node("Yaw/Camera")
     self.connect("moved", self, "on_moved")
@@ -113,6 +112,5 @@ func on_network_received(data):
 
 func on_moved():
     var pos = self.get_global_transform().origin
-    var fields = String(global.network_id) + ";" + String(pos.x) + ";" + String(pos.y) + ";" + String(pos.z)
-    laminar.send("plrmov:" + fields)
+
     
