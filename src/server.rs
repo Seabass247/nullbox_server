@@ -138,12 +138,12 @@ impl Server {
                         let received_data: &[u8] = packet.payload();
 
                         // If this packet address a known player id associated with it, set the current id.
-                        if let Some(id) = self.player_ids.get(&packet.addr()) {
+                        if let Some(id) = players.get(&packet.addr()) {
                             current_id = *id;
                         }
                         
                         // No known id for this packet address, let's get a new id and set current id
-                        if self.player_ids.get(&packet.addr()).is_none() {
+                        if players.get(&packet.addr()).is_none() {
                             unique_client_id += 1;
                             current_id = unique_client_id;
                             players.insert(packet.addr(), current_id,);
