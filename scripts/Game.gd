@@ -28,3 +28,8 @@ func on_network_received(data):
                     add_child(player)
                     player.set_name("player_" + id)
                     player.global_transform.origin = pos
+
+func _on_net_set_others_pos(data):
+	var id = data[0]
+	var pos = data[1]
+	

@@ -13,6 +13,7 @@ pub struct Client {
     pub _event_receiver: Receiver<SocketEvent>,
     pub server_address: SocketAddr,
     pub uid: Option<String>,
+    pub recv_sleep: (Sender<std::time::Duration>, Receiver<std::time::Duration>),
 }
 
 struct ShareNode {
@@ -64,9 +65,14 @@ impl Client {
         let mut context = ShareNode {
             node: context.clone(),
         };
+        let rx_sleep = self.recv_sleep.1.clone();
 
         thread::spawn(move || {
             loop {
+                while let Ok(time) = rx_sleep.try_recv() {
+                    godot_print!("LAMINAR SLEEP");
+                    std::thread::sleep(time);
+                }
                 match self._event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();

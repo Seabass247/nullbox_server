@@ -71,11 +71,26 @@ impl Laminar {
         match self.client.take() {
             Some(mut client) => {
                 client.send_vars(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
-                godot_print!("Laminar: send var packet");
+                //godot_print!("Laminar: send var packet");
                 self.client = Some(client);
             }
             None => {
                 godot_print!("Laminar error: must initialize client before sending data");
+            }
+        }
+    }
+
+    // Client only func
+    #[export]
+    fn sleep(&mut self, _owner: gdnative::Node, time: i64) {
+        match self.client.take() {
+            Some(mut client) => {
+                let time = std::time::Duration::from_millis(time as u64);
+                client.recv_sleep.0.send(time);
+                self.client = Some(client);
+            }
+            None => {
+                godot_print!("Laminar error: must initialize client first");
             }
         }
     }
@@ -98,7 +113,7 @@ impl Laminar {
                 match self.server.clone() {
                     Some(mut server) => {
                         server.send_to_all(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
-                        godot_print!("Laminar Server: send var packet to all");
+                        //godot_print!("Laminar Server: send var packet to all");
                         self.server = Some(server);
                     }
                     None => {
@@ -112,7 +127,7 @@ impl Laminar {
                 match self.server.clone() {
                     Some(mut server) => {
                         server.send_to(player_id, node_path.to_string(), method.to_string(), VariantTypes::from(variant));
-                        godot_print!("Laminar Server: send var packet to {}", player_id);
+                        //godot_print!("Laminar Server: send var packet to {}", player_id);
                         self.server = Some(server);
                     }
                     None => {
@@ -146,11 +161,15 @@ impl Laminar {
 
         let server_address: SocketAddr = address.to_string().parse().unwrap();
 
+        // For telling the recv data thread to block for a time
+        let (tx_sleep, rx_sleep): (Sender<std::time::Duration>, Receiver<std::time::Duration>) = crossbeam_channel::unbounded();
+
         let client = Client {
             packet_sender,
             _event_receiver: event_receiver,
             server_address,
             uid: None,
+            recv_sleep: (tx_sleep, rx_sleep),
         };
 
         self.client = Some(client);
