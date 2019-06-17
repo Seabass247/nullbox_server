@@ -9,7 +9,6 @@ var laminar
 func _ready():
 	laminar = get_node("/root/Laminar")
 	laminar.init_server("12345" as String, self as Node)
-	laminar.test(5 as int, "yes" as String, ["succ"])
 
 func _on_net_player_connected(id: int, data):
 	print("New player connected! id= ", id, ", name=", data[1])

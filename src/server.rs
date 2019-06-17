@@ -48,7 +48,7 @@ impl Server {
 
     pub fn send_to_all(&mut self, node_path: String, method: String, variants: VariantTypes) {
         self.update_player_hash();
-        
+
         let packet = PacketData {
             node_path,
             method,
@@ -90,7 +90,7 @@ impl Server {
         variants: VariantTypes,
     ) {
         self.update_player_hash();
-        godot_print!("Laminar ######: send_to()");
+
         let packet = PacketData {
             node_path,
             method,
@@ -98,16 +98,12 @@ impl Server {
         };
 
         let serialized = serialize(&packet);
-        godot_print!("Laminar ######: player connections size: {}", self.player_ids.len());
 
         // Send packet to the address that's associate with id 'player_id'
         for (addr, id) in &self.player_ids {
-            godot_print!("Laminar ######: for (addr, id) in &self.player_ids");
             if id == &player_id {
-                godot_print!("Laminar ######:  id == &player_id");
                 match &serialized {
                     Ok(raw_data) => {
-                        godot_print!("Laminar Server: found addr for player id");
                         let packet_sender = self.packet_sender.clone();
                         let raw_data = raw_data.clone();
                         let addr = addr.clone();
@@ -141,22 +137,18 @@ impl Server {
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();
 
-                        // If this address has no known player id instance associated with it, give it a unique id.
+                        // If this packet address a known player id associated with it, set the current id.
                         if let Some(id) = self.player_ids.get(&packet.addr()) {
-                            godot_print!("Laminar Server: address is SOME");
                             current_id = *id;
                         }
                         
-                        // No known id for this packet address, let's get a new id
+                        // No known id for this packet address, let's get a new id and set current id
                         if self.player_ids.get(&packet.addr()).is_none() {
-                            godot_print!("Laminar Server: address NONE");
                             unique_client_id += 1;
                             current_id = unique_client_id;
                             players.insert(packet.addr(), current_id,);
                             tx_player.send((packet.addr(), current_id));
                         }
-
-                        godot_print!("Laminar ######: player connections size after recv: {}", self.player_ids.len());
 
                         let data: PacketData = match deserialize(&received_data) {
                             Ok(data) => data,
@@ -223,9 +215,7 @@ impl Server {
                         godot_print!("Laminar: Connection to client {} timed out.", address);
                         //break;
                     }
-                    Ok(_) => {
-                        godot_print!("Laminar: got nothing");
-                    }
+                    Ok(_) => {}
                     Err(e) => {
                         godot_print!(
                             "Laminar: Something went wrong when receiving, error: {:?}",
