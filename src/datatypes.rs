@@ -13,6 +13,12 @@ pub enum VariantType {
     Unknown {},
 }
 
+#[derive(Serialize, Deserialize)]
+pub enum MetaMessage {
+    Heartbeat,
+    Ack,
+}
+
 impl From<godot::Variant> for VariantType {
     fn from(variant: godot::Variant) -> Self {
         match variant.get_type() {

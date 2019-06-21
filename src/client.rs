@@ -1,6 +1,6 @@
 use bincode::{deserialize, serialize};
 use crossbeam_channel::{Receiver, Sender};
-use datatypes::{PacketData, VariantType, VariantTypes};
+use datatypes::{PacketData, VariantType, VariantTypes, MetaMessage};
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -13,7 +13,8 @@ pub struct Client {
     pub _event_receiver: Receiver<SocketEvent>,
     pub server_address: SocketAddr,
     pub uid: Option<String>,
-    pub recv_sleep: (Sender<std::time::Duration>, Receiver<std::time::Duration>),
+    pub recv_sleep: (Sender<bool>, Receiver<bool>),
+    pub current_root: (Sender<String>, Receiver<String>),
 }
 
 struct ShareNode {
@@ -46,27 +47,71 @@ impl Client {
         }
     }
 
+    pub fn send_sync(&mut self, message: MetaMessage) {
+        let packet = MetaMessage::Heartbeat;
+
+        let serialized = serialize(&packet);
+        let packet_sender = self.packet_sender.clone();
+        let addr = self.server_address;
+
+        match serialized {
+            Ok(raw_data) => {
+                thread::spawn(move || {
+                    &packet_sender
+                        .send(Packet::reliable_unordered(addr, raw_data))
+                        .unwrap();
+                });
+            }
+            Err(e) => println!("Some error occurred: {:?}", e),
+        }
+    }
+
     pub unsafe fn start_receiving(self, owner: godot::Node) {
         let mut plugin_node = ShareNode {
             node: owner.clone(),
         };
         let rx_sleep = self.recv_sleep.1.clone();
+        let rx_root = self.current_root.1.clone();
 
         thread::spawn(move || {
+            let mut recv_sleep = false;
+            let mut current_root = String::new();
+
             loop {
                 match self._event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
-                        while let Ok(time) = rx_sleep.try_recv() {
-                            godot_print!("LAMINAR SLEEP");
-                            std::thread::sleep(time);
+                        // Ignore packets if client is supposed to sleep.
+                        if recv_sleep {
+                            match rx_sleep.try_recv() {
+                                Ok(sleep) => {
+                                    recv_sleep = sleep;
+                                }
+                                _ => {}
+                            }
                             continue;
                         }
+                        
+                        // Update our current root from godot
+                        match rx_root.try_recv() {
+                            Ok(root) => {
+                                current_root = root;
+                            }
+                            _ => {}
+                        }
+                        
                         let received_data: &[u8] = packet.payload();
 
                         let data: PacketData = match deserialize(&received_data) {
                             Ok(data) => data,
                             Err(_) => continue,
                         };
+
+                        // Don't process data if the data's destination node path is outside our current scene root.
+                        let packet_root = data.node_path.split("/").collect::<Vec<&str>>().get(2).unwrap().to_string();
+                        let dest_root = current_root.split("/").collect::<Vec<&str>>().get(2).unwrap().to_string();
+                        if dest_root != packet_root {
+                            continue;
+                        }
 
                         let target = plugin_node
                             .node
@@ -123,10 +168,18 @@ impl Client {
                             )
                         }
                         godot_print!("Laminar: Client got packet from {}", packet.addr());
+                        
+                        // Update recv_sleep to what we get from godot
+                        match rx_sleep.try_recv() {
+                            Ok(sleep) => {
+                                recv_sleep = sleep;
+                            }
+                            _ => {}
+                        }
                     }
                     Ok(SocketEvent::Timeout(address)) => {
                         godot_print!("Laminar: Connection to server {} timed out.", address);
-                        //break;
+                        // TODO: add timeout signal, so the client can handle it
                     }
                     Ok(_) => {
                         godot_print!("Laminar: Got nothing");

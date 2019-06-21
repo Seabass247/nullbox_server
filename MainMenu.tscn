@@ -99,10 +99,3 @@ margin_bottom = 296.0
 readonly = true
 script = ExtResource( 3 )
 
-[node name="Button2" type="Button" parent="Control"]
-margin_left = -40.0
-margin_top = 210.0
-margin_right = 60.0
-margin_bottom = 240.0
-text = "Test"
-

@@ -24,7 +24,7 @@ use server::Server;
 struct Laminar {
     client: Option<Client>,
     server: Option<Server>,
-    callback: bool,
+    client_heartbeat_time: f64,
 }
 
 fn get_available_port() -> Option<u16> {
@@ -41,7 +41,7 @@ impl Laminar {
         Laminar {
             client: None,
             server: None,
-            callback: false,
+            client_heartbeat_time: 0.0,
         }
     }
 
@@ -83,11 +83,31 @@ impl Laminar {
     // Client only func
     #[export]
     fn sleep(&mut self, _owner: gdnative::Node, time: i64) {
-        match self.client.take() {
+        match self.client.clone() {
             Some(mut client) => {
                 let time = std::time::Duration::from_millis(time as u64);
-                client.recv_sleep.0.send(time);
-                self.client = Some(client);
+                // Send sleep = true to the recv thread, wait for `time` ms, and then send sleep = false,
+                thread::spawn(move || {
+                    client.recv_sleep.0.send(true);
+                    std::thread::sleep(time);
+                    client.recv_sleep.0.send(false);
+                });
+            }
+            None => {
+                godot_print!("Laminar error: must initialize client first");
+            }
+        }
+    }
+
+    // Client only func
+    #[export]
+    fn set_root(&mut self, _owner: gdnative::Node, root: godot::GodotString) {
+        match self.client.clone() {
+            Some(mut client) => {
+                // Send the scene root path to the recv thread.
+                thread::spawn(move || {
+                    client.current_root.0.send(root.to_string());
+                });
             }
             None => {
                 godot_print!("Laminar error: must initialize client first");
@@ -113,8 +133,6 @@ impl Laminar {
                 match self.server.clone() {
                     Some(mut server) => {
                         server.send_to_all(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
-                        //godot_print!("Laminar Server: send var packet to all");
-                        self.server = Some(server);
                     }
                     None => {
                         godot_print!(
@@ -127,8 +145,6 @@ impl Laminar {
                 match self.server.clone() {
                     Some(mut server) => {
                         server.send_to(player_id, node_path.to_string(), method.to_string(), VariantTypes::from(variant));
-                        //godot_print!("Laminar Server: send var packet to {}", player_id);
-                        self.server = Some(server);
                     }
                     None => {
                         godot_print!(
@@ -136,6 +152,18 @@ impl Laminar {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    // For Laminar client only.  Sends a heartbeat to the server so it's connection won't time out.
+    #[export]
+    unsafe fn _physics_process(&mut self, mut _owner: godot::Node, delta: f64) {
+        if let Some(client) = self.client.as_mut() {
+            self.client_heartbeat_time += delta;
+            if self.client_heartbeat_time > 3.0 {
+                self.client_heartbeat_time = 0.0;
+                client.send_sync(datatypes::MetaMessage::Heartbeat);
             }
         }
     }
@@ -162,7 +190,8 @@ impl Laminar {
         let server_address: SocketAddr = address.to_string().parse().unwrap();
 
         // For telling the recv data thread to block for a time
-        let (tx_sleep, rx_sleep): (Sender<std::time::Duration>, Receiver<std::time::Duration>) = crossbeam_channel::unbounded();
+        let (tx_sleep, rx_sleep): (Sender<bool>, Receiver<bool>) = crossbeam_channel::unbounded();
+        let (tx_root, rx_root): (Sender<String>, Receiver<String>) = crossbeam_channel::unbounded();
 
         let client = Client {
             packet_sender,
@@ -170,6 +199,7 @@ impl Laminar {
             server_address,
             uid: None,
             recv_sleep: (tx_sleep, rx_sleep),
+            current_root: (tx_root, rx_root)
         };
 
         self.client = Some(client);
@@ -188,14 +218,38 @@ impl Laminar {
 
     /// Server only func
     #[export]
-    fn init_server(&mut self, _owner: gdnative::Node, port: godot::GodotString) {
-        let server = Server::new(port.to_string());
+    fn init_server(&mut self, _owner: gdnative::Node, context: godot::Node, port: godot::GodotString) {
+        let server = Server::new(_owner, port.to_string());
         self.server = Some(server);
 
         match self.server.clone() {
             Some(server) => unsafe {
                 server.start_receiving(_owner);
                 godot_print!("Laminar: server waiting for connections");
+                // Connect the timed out signal to the calling gdscript
+                let object = &context.to_object();
+                _owner
+                    .clone()
+                    .connect(
+                        godot::GodotString::from_str("player_timed_out"),
+                        Some(*object),
+                        godot::GodotString::from_str("_on_net_timed_out"),
+                        godot::VariantArray::new(),
+                        1,
+                    )
+                    .unwrap();
+                // Connect the new connection signal to the calling gdscript
+                let object = &context.to_object();
+                _owner
+                    .clone()
+                    .connect(
+                        godot::GodotString::from_str("player_connected"),
+                        Some(*object),
+                        godot::GodotString::from_str("_on_net_new_connection"),
+                        godot::VariantArray::new(),
+                        1,
+                    )
+                    .unwrap();
             },
             None => {}
         }
@@ -216,6 +270,14 @@ impl godot::NativeClass for Laminar {
     fn register_properties(builder: &godot::init::ClassBuilder<Self>) {
         builder.add_signal(godot::init::Signal {
             name: "recv_data",
+            args: &[],
+        });
+        builder.add_signal(godot::init::Signal {
+            name: "player_timed_out",
+            args: &[],
+        });
+        builder.add_signal(godot::init::Signal {
+            name: "player_connected",
             args: &[],
         });
     }

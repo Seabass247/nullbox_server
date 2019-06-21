@@ -5,8 +5,10 @@ var global
 onready var new_player = preload("res://Player.tscn")
 
 func _ready():
-    laminar = get_node("/root/Global").laminar
-    global = get_node("/root/Global")
+	laminar = get_node("/root/Global").laminar
+	laminar.set_root("/root/Game")
+	print("yoo")
+	global = get_node("/root/Global")
 
 func on_network_received(data):
     if (data[0][0] == "upd_ply"):
