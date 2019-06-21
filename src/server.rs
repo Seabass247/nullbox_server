@@ -53,7 +53,7 @@ impl Server {
     }
 
     pub fn send_to_all(&mut self, node_path: String, method: String, variants: VariantTypes) {
-        //self.update_player_conns();
+        self.update_player_conns();
 
         let packet = PacketData {
             node_path,
@@ -69,7 +69,6 @@ impl Server {
                     let packet_sender = self.packet_sender.clone();
                     let raw_data = raw_data.clone();
                     let addr = addr.clone();
-
                     &packet_sender
                         .send(Packet::reliable_unordered(addr, raw_data))
                         .unwrap();
@@ -101,7 +100,7 @@ impl Server {
         method: String,
         variants: VariantTypes,
     ) {
-        self.update_player_conns();
+        let conns = self.update_player_conns();
 
         let packet = PacketData {
             node_path,
@@ -146,24 +145,8 @@ impl Server {
             loop {
                 //godot_print!("Current player dict={:?}", player_id_dict);
                 match event_receiver.recv() {
-                    Ok(SocketEvent::Connect(address)) => {
-                        godot_print!("Laminar Server: New connection from {}", address);
-                        unique_client_id += 1;
-                        
-                        // Share new player connection to the main lib thread and add it to this threads dictionary. 
-                        tx_player.send((address, unique_client_id));
-                        player_id_dict.insert(address, unique_client_id);
-                        
-                        // Pass the new connection event through a godot signal so we can handle it in gdscript.
-                        plugin_node.node.emit_signal(
-                            godot::GodotString::from_str("player_connected"),
-                            &[godot::Variant::from_i64(unique_client_id)],
-                        );
-                    }
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();
-                        
-                        current_id = *player_id_dict.get(&packet.addr()).unwrap();
                         
                         let data: PacketData = match deserialize(&received_data) {
                             Ok(data) => data,
@@ -183,6 +166,26 @@ impl Server {
                                 }
                             },
                         };
+                        
+                        // If this packet address a known player id associated with it, set the current id.
+                        if let Some(id) = player_id_dict.get(&packet.addr()) {
+                            current_id = *id;
+                        }
+                        
+                        // No known id for this packet address, let's get a new id and set current id
+                        if player_id_dict.get(&packet.addr()).is_none() {
+                            godot_print!("Laminar Server: New connection from {}", &packet.addr());
+                            unique_client_id += 1;
+                            current_id = unique_client_id;
+                            player_id_dict.insert(packet.addr(), current_id);
+                            tx_player.send((packet.addr(), current_id));
+
+                            // Pass the new connection event through a godot signal so we can handle it in gdscript.
+                            plugin_node.node.emit_signal(
+                                godot::GodotString::from_str("player_connected"),
+                                &[godot::Variant::from_i64(unique_client_id)],
+                            );
+                        }
 
                         let target = plugin_node
                             .node
@@ -242,16 +245,17 @@ impl Server {
                     }
                     Ok(SocketEvent::Timeout(address)) => {
                         godot_print!("Laminar: Connection to client {} timed out.", address);
-                        let timed_out_player_id = player_id_dict.get(&address).unwrap();
-                        
+
+                        let timed_out_player_id = player_id_dict.remove(&address).unwrap();
+    
                         // Pass the timed out connection event through a godot signal so we can handle it in gdscript
                         plugin_node.node.emit_signal(
                             godot::GodotString::from_str("player_timed_out"),
-                            &[godot::Variant::from_i64(*timed_out_player_id)],
+                            &[godot::Variant::from_i64(timed_out_player_id)],
                         );
                         
                         // Share the timed out player with the main lib thread so dont send data in future calls
-                        tx_timed_out_player.send((address, *timed_out_player_id));
+                        tx_timed_out_player.send((address, timed_out_player_id));
                     }
                     Ok(_) => {
                     }

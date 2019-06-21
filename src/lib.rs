@@ -130,7 +130,7 @@ impl Laminar {
         let method = dest_split[1];
         match player_id {
             0 => {
-                match self.server.clone() {
+                match self.server.as_mut() {
                     Some(mut server) => {
                         server.send_to_all(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
                     }
@@ -142,7 +142,7 @@ impl Laminar {
                 }         
             }
             _ => {
-                match self.server.clone() {
+                match self.server.as_mut() {
                     Some(mut server) => {
                         server.send_to(player_id, node_path.to_string(), method.to_string(), VariantTypes::from(variant));
                     }
