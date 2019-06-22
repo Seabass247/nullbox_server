@@ -52,25 +52,64 @@ impl Server {
         server
     }
 
-    pub fn send_to_all(&mut self, node_path: String, method: String, variants: VariantTypes) {
-        self.update_player_conns();
+    pub fn update_player_conns(&mut self, hashmap: &mut HashMap<SocketAddr, i64>) -> HashMap<SocketAddr, i64> {
+        // For every timed out player connection sent from the recv thread, remove the player from this thread's player dict.
+        while let Ok(tup) = self.timeout_conn_ch.1.try_recv() {
+            let addr = tup.0;
+            hashmap.remove(&addr);
+        }
+        // For every new player connection sent from the recv thread, add the player to this thread's player dict.
+        while let Ok(tup) = self.timeout_conn_ch.1.try_recv() {
+            let addr = tup.0;
+            let id = tup.1;
+            hashmap.insert(addr, id);
+            godot_print!("INSEERRRRRRRRRRRRRRRRRRRRT PLAYER");
+        }
+
+        self.player_conns = hashmap.clone();
+
+        hashmap.clone()
+    }
+
+    pub fn send_to_all(&mut self, conns: &mut HashMap<SocketAddr, i64>, node_path: String, method: String, variants: VariantTypes) {
 
         let packet = PacketData {
             node_path,
             method,
             variants,
         };
-
+        
         let serialized = serialize(&packet);
 
         match serialized {
             Ok(raw_data) => {
-                for addr in self.player_conns.keys() {
+                for addr in conns.keys() {
                     let packet_sender = self.packet_sender.clone();
                     let raw_data = raw_data.clone();
                     let addr = addr.clone();
-                    &packet_sender
-                        .send(Packet::reliable_unordered(addr, raw_data))
+                    thread::spawn(move || {
+                        packet_sender
+                            .send(Packet::reliable_unordered(addr, raw_data))
+                            .unwrap();                        
+                    });
+                }
+            }
+            Err(e) => println!("Some error occurred: {:?}", e),
+        }
+    }
+
+    pub fn send_sync_to_all(&mut self, message: MetaMessage) {
+
+        let serialized = serialize(&message);
+        
+        match serialized {
+            Ok(raw_data) => {
+                for addr in self.player_conns.keys() {
+                    let packet_sender = &self.packet_sender;
+                    let raw_data = raw_data.clone();
+                    let addr = addr.clone();
+                    packet_sender
+                        .try_send(Packet::reliable_unordered(addr, raw_data))
                         .unwrap();
 
                 }
@@ -79,29 +118,14 @@ impl Server {
         }
     }
 
-    fn update_player_conns(&mut self) {
-        // For every timed out player connection sent from the recv thread, remove the player from this thread's player dict.
-        while let Ok(tup) = self.timeout_conn_ch.1.try_recv() {
-            let addr = tup.0;
-            self.player_conns.remove(&addr);
-        }
-        // For every new player connection sent from the recv thread, add the player to this thread's player dict.
-        while let Ok(tup) = self.new_conn_ch.1.try_recv() {
-            let addr = tup.0;
-            let id = tup.1;
-            self.player_conns.insert(addr, id);
-        }
-    }
-
     pub fn send_to(
         &mut self,
+        conns: &mut HashMap<SocketAddr, i64>,
         player_id: i64,
         node_path: String,
         method: String,
         variants: VariantTypes,
     ) {
-        let conns = self.update_player_conns();
-
         let packet = PacketData {
             node_path,
             method,
@@ -109,18 +133,20 @@ impl Server {
         };
 
         let serialized = serialize(&packet);
-
+        
         // Send packet to the address that's associate with id 'player_id'
-        for (addr, id) in &self.player_conns {
-            if id == &player_id {
+        for (addr, id) in conns {
+            if *id == player_id {
                 match &serialized {
                     Ok(raw_data) => {
                         let packet_sender = self.packet_sender.clone();
                         let raw_data = raw_data.clone();
                         let addr = addr.clone();
-                        &packet_sender
-                            .send(Packet::reliable_unordered(addr, raw_data))
-                            .unwrap();
+                        thread::spawn(move || {
+                            packet_sender
+                                .try_send(Packet::reliable_unordered(addr, raw_data))
+                                .unwrap();                        
+                        });
 
                     }
                     Err(_) => println!("Some error occurred serializing"),
@@ -144,7 +170,8 @@ impl Server {
 
             loop {
                 //godot_print!("Current player dict={:?}", player_id_dict);
-                match event_receiver.recv() {
+                godot_print!("START LOOP");
+                match event_receiver.recv_timeout(std::time::Duration::from_millis(5000)) {
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();
                         
@@ -166,12 +193,12 @@ impl Server {
                                 }
                             },
                         };
-                        
+
                         // If this packet address a known player id associated with it, set the current id.
                         if let Some(id) = player_id_dict.get(&packet.addr()) {
                             current_id = *id;
                         }
-                        
+
                         // No known id for this packet address, let's get a new id and set current id
                         if player_id_dict.get(&packet.addr()).is_none() {
                             godot_print!("Laminar Server: New connection from {}", &packet.addr());
@@ -218,7 +245,7 @@ impl Server {
                                 )
                                 .unwrap();
                         }
-
+                        
                         // Get the godot variants from the deserialized data variants
                         let mut var_array = godot::VariantArray::new();
                         data.variants
@@ -241,6 +268,7 @@ impl Server {
                                 godot::GodotString::from_str(&target_method),
                             )
                         }
+
                         //godot_print!("Laminar: Server got packet from {}", packet.addr());
                     }
                     Ok(SocketEvent::Timeout(address)) => {
@@ -266,6 +294,7 @@ impl Server {
                         );
                     }
                 }
+                godot_print!("END LOOP");
             }
         });
     }

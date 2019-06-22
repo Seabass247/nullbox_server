@@ -66,19 +66,23 @@ impl Client {
         }
     }
 
-    pub unsafe fn start_receiving(self, owner: godot::Node) {
+    pub unsafe fn start_receiving(&self, owner: godot::Node) {
         let mut plugin_node = ShareNode {
             node: owner.clone(),
         };
         let rx_sleep = self.recv_sleep.1.clone();
         let rx_root = self.current_root.1.clone();
+        let _event_receiver = self._event_receiver.clone();
 
         thread::spawn(move || {
             let mut recv_sleep = false;
             let mut current_root = String::new();
 
             loop {
-                match self._event_receiver.recv() {
+                match _event_receiver.recv() {
+                    Ok(SocketEvent::Connect(addr)) => {
+
+                    }
                     Ok(SocketEvent::Packet(packet)) => {
                         // Ignore packets if client is supposed to sleep.
                         if recv_sleep {
@@ -227,6 +231,7 @@ impl Client {
                             Some(*object),
                             godot::GodotString::from_str("_on_net_timed_out"),
                         );
+                        break;
                     }
                     Ok(_) => {
                         godot_print!("Laminar: Got nothing");

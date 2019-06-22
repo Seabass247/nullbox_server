@@ -20,10 +20,12 @@ use std::net::SocketAddr;
 use std::net::{IpAddr, Ipv4Addr};
 use std::{thread, time};
 use server::Server;
+use std::collections::HashMap;
 
 struct Laminar {
     client: Option<Client>,
     server: Option<Server>,
+    server_conns: Option<HashMap<SocketAddr, i64>>,
     client_heartbeat_time: f64,
 }
 
@@ -41,6 +43,7 @@ impl Laminar {
         Laminar {
             client: None,
             server: None,
+            server_conns: None,
             client_heartbeat_time: 0.0,
         }
     }
@@ -68,11 +71,9 @@ impl Laminar {
             return;
         }
         let method = dest_split[1];
-        match self.client.take() {
-            Some(mut client) => {
+        match self.client.as_mut() {
+            Some(client) => {
                 client.send_vars(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
-                //godot_print!("Laminar: send var packet");
-                self.client = Some(client);
             }
             None => {
                 godot_print!("Laminar error: must initialize client before sending data");
@@ -128,11 +129,30 @@ impl Laminar {
             return;
         }
         let method = dest_split[1];
+
+        let conns = self.server_conns.as_mut().unwrap();
+
+        match self.server.as_mut() {
+            Some(server) => {
+                while let Ok(tup) = server.timeout_conn_ch.1.try_recv() {
+                    let addr = tup.0;
+                    conns.remove(&addr);
+                }
+                // For every new player connection sent from the recv thread, add the player to this thread's player dict.
+                while let Ok(tup) = server.new_conn_ch.1.try_recv() {
+                    let addr = tup.0;
+                    let id = tup.1;
+                    conns.insert(addr, id);
+                }
+            },
+            _ => {},
+        }
+
         match player_id {
             0 => {
                 match self.server.as_mut() {
-                    Some(mut server) => {
-                        server.send_to_all(node_path.to_string(), method.to_string(), VariantTypes::from(variant));
+                    Some(server) => {
+                        server.send_to_all(conns, node_path.to_string(), method.to_string(), VariantTypes::from(variant));
                     }
                     None => {
                         godot_print!(
@@ -143,8 +163,8 @@ impl Laminar {
             }
             _ => {
                 match self.server.as_mut() {
-                    Some(mut server) => {
-                        server.send_to(player_id, node_path.to_string(), method.to_string(), VariantTypes::from(variant));
+                    Some(server) => {
+                        server.send_to(conns, player_id, node_path.to_string(), method.to_string(), VariantTypes::from(variant));
                     }
                     None => {
                         godot_print!(
@@ -161,9 +181,16 @@ impl Laminar {
     unsafe fn _physics_process(&mut self, mut _owner: godot::Node, delta: f64) {
         if let Some(client) = self.client.as_mut() {
             self.client_heartbeat_time += delta;
-            if self.client_heartbeat_time > 3.0 {
+            if self.client_heartbeat_time > 0.5 {
                 self.client_heartbeat_time = 0.0;
                 client.send_sync(datatypes::MetaMessage::Heartbeat);
+            }
+        }
+        if let Some(server) = self.server.as_mut() {
+            self.client_heartbeat_time += delta;
+            if self.client_heartbeat_time > 1.0 {
+                self.client_heartbeat_time = 0.0;
+                server.send_sync_to_all(datatypes::MetaMessage::Heartbeat);
             }
         }
     }
@@ -171,15 +198,6 @@ impl Laminar {
     /// Client only func
     #[export]
     fn init_client(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
-        // setup an udp socket and bind it to the client address.
-        if self.client.is_some() {
-            let mut client = self.client.take().unwrap();
-            let server_address: SocketAddr = address.to_string().parse().unwrap();
-            client.server_address = server_address;
-            self.client = Some(client);
-            return;
-        }
-
         let mut client_socket = SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
             get_available_port().unwrap(),
@@ -221,6 +239,7 @@ impl Laminar {
     fn init_server(&mut self, _owner: gdnative::Node, context: godot::Node, port: godot::GodotString) {
         let server = Server::new(_owner, port.to_string());
         self.server = Some(server);
+        self.server_conns = Some(HashMap::new());
 
         match self.server.clone() {
             Some(server) => unsafe {

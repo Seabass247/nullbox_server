@@ -14,7 +14,8 @@ func _ready():
 
 func _process(delta):
 	time += delta
-	#print("Tick: ", time)
+	#print("Tick: ", delta)
+	#print("Players:", players)
 
 func _on_net_player_connected(id: int, data):
 	print("Configure new player id= ", id, ", name=", data[1])
@@ -36,7 +37,7 @@ func _on_net_timed_out(id: int):
 func _on_net_player_pos(id: int, data):
 	var player_path = "Players/player_" + String(id)
 	var player: KinematicBody = get_node(player_path)
-	print("player_", id, ": pos=", data[0])
+	#print("player_", id, ": pos=", data[0])
 	player.global_transform.origin = data[0]
 
 func spawn_player(id, username):
@@ -44,5 +45,6 @@ func spawn_player(id, username):
 	var player_instance = player.instance()
 	var name = "player_" + String(id)
 	player_instance.set_name(name)
+	player_instance.id = id
 	get_node("Players").add_child(player_instance)
 	print("Spawn player: ", name)
