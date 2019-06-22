@@ -35,7 +35,8 @@ func _on_net_timed_out():
 	get_tree().change_scene("res://MainMenu.tscn")
 
 func _on_net_pos_relayed(data):
-	print("Pos relayed:", data[1])
+	pass
+	#print("Pos relayed:", data[1])
 	
 func _on_net_set_others_pos(data):
 	var id = data[0]

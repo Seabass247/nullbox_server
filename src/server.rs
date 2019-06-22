@@ -1,6 +1,6 @@
 use bincode::{deserialize, serialize};
 use crossbeam_channel::{Receiver, Sender};
-use datatypes::{PacketData, VariantType, VariantTypes, MetaMessage};
+use datatypes::*;
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ use std::{thread, time};
 
 #[derive(Clone)]
 pub struct Server {
-    pub packet_sender: Sender<Packet>,
+    pub event_sender: Sender<SendEvent>,
     pub event_receiver: Receiver<SocketEvent>,
     pub player_conns: HashMap<SocketAddr, i64>,
     pub new_conn_ch: (Sender<(SocketAddr, i64)>, Receiver<(SocketAddr, i64)>),
@@ -40,82 +40,73 @@ impl Server {
 
         let (tx_new_conn, rx_new_conn): (Sender<(SocketAddr, i64)>, Receiver<(SocketAddr, i64)>) = crossbeam_channel::unbounded();
         let (tx_timeout_conn, rx_timeout_conn): (Sender<(SocketAddr, i64)>, Receiver<(SocketAddr, i64)>) = crossbeam_channel::unbounded();
-
+        
         let server = Server {
-            packet_sender,
+            event_sender: Self::start_sending(packet_sender),
             event_receiver,
             player_conns: HashMap::new(),
             new_conn_ch: (tx_new_conn, rx_new_conn),
             timeout_conn_ch: (tx_timeout_conn, rx_timeout_conn),
         };
-        
+
+        unsafe { server.start_receiving(owner); }
+
         server
     }
 
-    pub fn update_player_conns(&mut self, hashmap: &mut HashMap<SocketAddr, i64>) -> HashMap<SocketAddr, i64> {
-        // For every timed out player connection sent from the recv thread, remove the player from this thread's player dict.
-        while let Ok(tup) = self.timeout_conn_ch.1.try_recv() {
-            let addr = tup.0;
-            hashmap.remove(&addr);
-        }
-        // For every new player connection sent from the recv thread, add the player to this thread's player dict.
-        while let Ok(tup) = self.timeout_conn_ch.1.try_recv() {
-            let addr = tup.0;
-            let id = tup.1;
-            hashmap.insert(addr, id);
-            godot_print!("INSEERRRRRRRRRRRRRRRRRRRRT PLAYER");
-        }
+    fn start_sending(sender: Sender<Packet>) -> Sender<SendEvent> {
+        let (event_sender, event_receiver): (Sender<SendEvent>, Receiver<SendEvent>) = crossbeam_channel::unbounded();
 
-        self.player_conns = hashmap.clone();
+        thread::spawn(move || loop {
+            for send_event in event_receiver.try_iter() {
+                let serialized = send_event.to_packet();
 
-        hashmap.clone()
+                match serialized {
+                    Some(packet) => {
+                        //godot_print!("##########SEND##########");
+                        sender.send(packet);
+                    }
+                    None => {
+                        godot_print!("Laminar Server: Failed to serialize and send packet");
+                    }
+                }
+            }
+        });
+        
+        event_sender
     }
 
     pub fn send_to_all(&mut self, conns: &mut HashMap<SocketAddr, i64>, node_path: String, method: String, variants: VariantTypes) {
+        for addr in conns.keys() {
+            let pack = EventData {
+                node_path: node_path.clone(),
+                method: method.clone(),
+                variants: variants.clone(),
+            };
 
-        let packet = PacketData {
-            node_path,
-            method,
-            variants,
-        };
-        
-        let serialized = serialize(&packet);
+            let send_event = SendEvent {
+                addr: *addr,
+                delivery: DeliveryType::RelUnord,
+                pack: Some(pack),
+                meta: None,
+            };
 
-        match serialized {
-            Ok(raw_data) => {
-                for addr in conns.keys() {
-                    let packet_sender = self.packet_sender.clone();
-                    let raw_data = raw_data.clone();
-                    let addr = addr.clone();
-                    thread::spawn(move || {
-                        packet_sender
-                            .send(Packet::reliable_unordered(addr, raw_data))
-                            .unwrap();                        
-                    });
-                }
-            }
-            Err(e) => println!("Some error occurred: {:?}", e),
+            self.event_sender.send(send_event);
         }
     }
 
-    pub fn send_sync_to_all(&mut self, message: MetaMessage) {
+    pub fn send_sync_to_all(&mut self, conns: &mut HashMap<SocketAddr, i64>, message: MetaMessage) { 
+        for addr in conns.keys() {
+            let send_event = SendEvent {
+                addr: *addr,
+                delivery: DeliveryType::RelUnord,
+                pack: None,
+                meta: Some(message.clone()),
+            };
 
-        let serialized = serialize(&message);
-        
-        match serialized {
-            Ok(raw_data) => {
-                for addr in self.player_conns.keys() {
-                    let packet_sender = &self.packet_sender;
-                    let raw_data = raw_data.clone();
-                    let addr = addr.clone();
-                    packet_sender
-                        .try_send(Packet::reliable_unordered(addr, raw_data))
-                        .unwrap();
-
-                }
-            }
-            Err(e) => println!("Some error occurred: {:?}", e),
-        }
+            self.event_sender.send(send_event);
+            godot_print!("LAMINAR: Server sends sync to {}", addr);
+        }      
     }
 
     pub fn send_to(
@@ -126,31 +117,23 @@ impl Server {
         method: String,
         variants: VariantTypes,
     ) {
-        let packet = PacketData {
+        let packet = EventData {
             node_path,
             method,
             variants,
         };
-
-        let serialized = serialize(&packet);
         
         // Send packet to the address that's associate with id 'player_id'
         for (addr, id) in conns {
             if *id == player_id {
-                match &serialized {
-                    Ok(raw_data) => {
-                        let packet_sender = self.packet_sender.clone();
-                        let raw_data = raw_data.clone();
-                        let addr = addr.clone();
-                        thread::spawn(move || {
-                            packet_sender
-                                .try_send(Packet::reliable_unordered(addr, raw_data))
-                                .unwrap();                        
-                        });
+                let send_event = SendEvent {
+                    addr: *addr,
+                    delivery: DeliveryType::RelUnord,
+                    pack: Some(packet.clone()),
+                    meta: None,
+                };
 
-                    }
-                    Err(_) => println!("Some error occurred serializing"),
-                }           
+                self.event_sender.send(send_event);
             }
         }
     }
@@ -170,12 +153,12 @@ impl Server {
 
             loop {
                 //godot_print!("Current player dict={:?}", player_id_dict);
-                godot_print!("START LOOP");
-                match event_receiver.recv_timeout(std::time::Duration::from_millis(5000)) {
+                //godot_print!("START LOOP");
+                match event_receiver.recv() {
                     Ok(SocketEvent::Packet(packet)) => {
                         let received_data: &[u8] = packet.payload();
                         
-                        let data: PacketData = match deserialize(&received_data) {
+                        let data: EventData = match deserialize(&received_data) {
                             Ok(data) => data,
                             // Handle non-in-game received data
                             Err(_) => {
@@ -269,12 +252,15 @@ impl Server {
                             )
                         }
 
-                        //godot_print!("Laminar: Server got packet from {}", packet.addr());
+                        godot_print!("Laminar: Server got packet from {}", packet.addr());
                     }
                     Ok(SocketEvent::Timeout(address)) => {
                         godot_print!("Laminar: Connection to client {} timed out.", address);
 
-                        let timed_out_player_id = player_id_dict.remove(&address).unwrap();
+                        let timed_out_player_id = match player_id_dict.remove(&address) {
+                            Some(val) => val,
+                            None => continue,
+                        };
     
                         // Pass the timed out connection event through a godot signal so we can handle it in gdscript
                         plugin_node.node.emit_signal(
@@ -294,7 +280,7 @@ impl Server {
                         );
                     }
                 }
-                godot_print!("END LOOP");
+                //godot_print!("END LOOP");
             }
         });
     }

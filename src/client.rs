@@ -1,6 +1,6 @@
 use bincode::{deserialize, serialize};
 use crossbeam_channel::{Receiver, Sender};
-use datatypes::{PacketData, VariantType, VariantTypes, MetaMessage};
+use datatypes::*;
 use laminar::{ErrorKind, Packet, Socket, SocketEvent};
 use serde_derive::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -25,7 +25,7 @@ unsafe impl Send for ShareNode {}
 
 impl Client {
     pub fn send_vars(&mut self, node_path: String, method: String, data_types: VariantTypes) {
-        let packet = PacketData {
+        let packet = EventData {
             node_path,
             method,
             variants: data_types,
@@ -64,6 +64,8 @@ impl Client {
             }
             Err(e) => println!("Some error occurred: {:?}", e),
         }
+
+        godot_print!("Laminar: client sends sync")
     }
 
     pub unsafe fn start_receiving(&self, owner: godot::Node) {
@@ -104,8 +106,10 @@ impl Client {
                         }
                         
                         let received_data: &[u8] = packet.payload();
+                        
+                        //godot_print!("Laminar: Client got packet from {}", packet.addr());
 
-                        let data: PacketData = match deserialize(&received_data) {
+                        let data: EventData = match deserialize(&received_data) {
                             Ok(data) => data,
                             Err(_) => continue,
                         };

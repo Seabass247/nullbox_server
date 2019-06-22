@@ -49,8 +49,9 @@ impl Laminar {
     }
 
     #[export]
-    fn _ready(&self, _owner: gdnative::Node) {
+    unsafe fn _ready(&self, mut owner: gdnative::Node) {
         godot_print!("Laminar: plugin ready");
+        owner.set_process(true);
     }
 
     #[export]
@@ -178,26 +179,28 @@ impl Laminar {
 
     // For Laminar client only.  Sends a heartbeat to the server so it's connection won't time out.
     #[export]
-    unsafe fn _physics_process(&mut self, mut _owner: godot::Node, delta: f64) {
+    unsafe fn _process(&mut self, mut _owner: godot::Node, delta: f64) {
         if let Some(client) = self.client.as_mut() {
             self.client_heartbeat_time += delta;
-            if self.client_heartbeat_time > 0.5 {
+            if self.client_heartbeat_time > 1.0 {
                 self.client_heartbeat_time = 0.0;
                 client.send_sync(datatypes::MetaMessage::Heartbeat);
             }
         }
         if let Some(server) = self.server.as_mut() {
+            let conns = self.server_conns.as_mut().unwrap();
             self.client_heartbeat_time += delta;
             if self.client_heartbeat_time > 1.0 {
                 self.client_heartbeat_time = 0.0;
-                server.send_sync_to_all(datatypes::MetaMessage::Heartbeat);
+                server.send_sync_to_all(conns, datatypes::MetaMessage::Heartbeat);
+                
             }
         }
     }
 
     /// Client only func
     #[export]
-    fn init_client(&mut self, _owner: gdnative::Node, address: godot::GodotString) {
+    fn init_client(&mut self, _owner: gdnative::Node, context: godot::Node, address: godot::GodotString) {
         let mut client_socket = SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
             get_available_port().unwrap(),
@@ -229,6 +232,18 @@ impl Laminar {
                     "Laminar: client waiting for connection response from server {}",
                     address.to_string()
                 );
+                // Bring this node into the context tree so process is called
+                let object = &context.to_object();
+                _owner
+                    .clone()
+                    .connect(
+                        godot::GodotString::from_str("hook"),
+                        Some(*object),
+                        godot::GodotString::from_str("_on_net_timed_out"),
+                        godot::VariantArray::new(),
+                        1,
+                    )
+                    .unwrap();
             },
             None => {}
         }
@@ -243,7 +258,6 @@ impl Laminar {
 
         match self.server.clone() {
             Some(server) => unsafe {
-                server.start_receiving(_owner);
                 godot_print!("Laminar: server waiting for connections");
                 // Connect the timed out signal to the calling gdscript
                 let object = &context.to_object();
@@ -297,6 +311,10 @@ impl godot::NativeClass for Laminar {
         });
         builder.add_signal(godot::init::Signal {
             name: "player_connected",
+            args: &[],
+        });
+        builder.add_signal(godot::init::Signal {
+            name: "hook",
             args: &[],
         });
     }

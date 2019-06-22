@@ -33,7 +33,7 @@ func on_connect_lan():
 	username = get_node("Control/UsernameBox").text
 	global = get_node("/root/Global")
 	var address = server_ip + ":" + server_port
-	laminar.init_client(address as String)
+	laminar.init_client(self as Node, address as String)
 	laminar.set_root("/root/MainMenu")
 	var pack: Array = ["register:", username]
 	laminar.send("/root/Game:player_connected" as String, pack as Array)

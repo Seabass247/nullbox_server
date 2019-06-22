@@ -1,6 +1,11 @@
 use godot::ToVariant;
 use serde_derive::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::convert::From;
+use bincode::{deserialize, serialize};
+use std::io::Error;
 
+#[derive(Clone)]
 #[derive(Serialize, Deserialize)]
 pub enum VariantType {
     Vector2 { x: f32, y: f32 },
@@ -13,10 +18,72 @@ pub enum VariantType {
     Unknown {},
 }
 
+#[derive(Clone)]
 #[derive(Serialize, Deserialize)]
 pub enum MetaMessage {
     Heartbeat,
     Ack,
+}
+
+pub enum DeliveryType {
+    RelOrd,
+    RelSeq,
+    RelUnord,
+    Unrel,
+    UnrelSeq,
+}
+
+trait SerializableEvent {
+    fn to_packet(&self) -> Option<laminar::Packet>;
+}
+
+pub struct SendEvent {
+    pub addr: SocketAddr,
+    pub delivery: DeliveryType,
+    pub pack: Option<EventData>,
+    pub meta: Option<MetaMessage>,
+}
+
+impl SendEvent {
+    pub fn to_packet(&self) -> Option<laminar::Packet> {
+        if let Some(packet_data) = &self.pack {
+            let delivery = &self.delivery;
+            let serialized = match serialize(&packet_data) {
+                Ok(data) => data,
+                Err(e) => return None,
+            };
+
+            let packet = match delivery {
+                RelOrd => laminar::Packet::reliable_ordered(self.addr, serialized, None),
+                RelSeq => laminar::Packet::reliable_sequenced(self.addr, serialized, None),
+                RelUnord => laminar::Packet::reliable_unordered(self.addr, serialized),
+                Unrel => laminar::Packet::unreliable(self.addr, serialized),
+                UnrelSeq => laminar::Packet::unreliable_sequenced(self.addr, serialized, None),
+            };
+
+            Some(packet)
+
+        } else if let Some(meta) = &self.meta {
+            let delivery = &self.delivery;
+            let serialized = match serialize(&meta) {
+                Ok(data) => data,
+                Err(e) => return None,
+            };
+
+            let packet = match delivery {
+                RelOrd => laminar::Packet::reliable_ordered(self.addr, serialized, None),
+                RelSeq => laminar::Packet::reliable_sequenced(self.addr, serialized, None),
+                RelUnord => laminar::Packet::reliable_unordered(self.addr, serialized),
+                Unrel => laminar::Packet::unreliable(self.addr, serialized),
+                UnrelSeq => laminar::Packet::unreliable_sequenced(self.addr, serialized, None),
+            };
+
+            Some(packet)        
+
+        } else {
+            None
+        }
+    }
 }
 
 impl From<godot::Variant> for VariantType {
@@ -57,6 +124,7 @@ impl From<godot::Variant> for VariantType {
     }
 }
 
+#[derive(Clone)]
 #[derive(Serialize, Deserialize)]
 pub struct VariantTypes(pub Vec<VariantType>);
 
@@ -102,8 +170,9 @@ impl VariantType {
     }
 }
 
+#[derive(Clone)]
 #[derive(Serialize, Deserialize)]
-pub struct PacketData {
+pub struct EventData {
     pub node_path: String,
     pub method: String,
     pub variants: VariantTypes,
