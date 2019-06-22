@@ -28,7 +28,7 @@ struct Laminar {
 }
 
 fn get_available_port() -> Option<u16> {
-    (8000..9000).find(|port| match Socket::bind(("127.0.0.1", *port)) {
+    (10000..12000).find(|port| match Socket::bind(("0.0.0.0", *port)) {
         Ok(_) => true,
         Err(_) => false,
     })
@@ -181,7 +181,7 @@ impl Laminar {
         }
 
         let mut client_socket = SocketAddr::new(
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
             get_available_port().unwrap(),
         );
         let (mut socket, packet_sender, event_receiver) = Socket::bind(client_socket).unwrap();
@@ -231,7 +231,7 @@ impl Laminar {
                 _owner
                     .clone()
                     .connect(
-                        godot::GodotString::from_str("player_timed_out"),
+                        godot::GodotString::from_str("connection_timed_out"),
                         Some(*object),
                         godot::GodotString::from_str("_on_net_timed_out"),
                         godot::VariantArray::new(),
@@ -273,7 +273,7 @@ impl godot::NativeClass for Laminar {
             args: &[],
         });
         builder.add_signal(godot::init::Signal {
-            name: "player_timed_out",
+            name: "connection_timed_out",
             args: &[],
         });
         builder.add_signal(godot::init::Signal {

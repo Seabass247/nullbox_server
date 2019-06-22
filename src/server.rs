@@ -24,12 +24,12 @@ unsafe impl Send for ShareNode {}
 
 impl Server {
     pub fn new(owner: godot::Node, port: String) -> Self {
-        let address = format!("127.0.0.1:{}", port);
+        let address = format!("0.0.0.0:{}", port);
         let listen_address: SocketAddr = match address.to_string().parse() {
             Ok(addr) => addr,
             Err(_) => {
-                godot_print!("Laminar: Failed to parse port, defaulting to '8080'");
-                "127.0.0.1:8080".to_string().parse().unwrap()
+                godot_print!("Laminar: Failed to parse port, defaulting to '9696'");
+                "0.0.0.0:8080".to_string().parse().unwrap()
             }
         };
         let (mut socket, packet_sender, event_receiver) = Socket::bind(listen_address).unwrap();
@@ -250,7 +250,7 @@ impl Server {
     
                         // Pass the timed out connection event through a godot signal so we can handle it in gdscript
                         plugin_node.node.emit_signal(
-                            godot::GodotString::from_str("player_timed_out"),
+                            godot::GodotString::from_str("connection_timed_out"),
                             &[godot::Variant::from_i64(timed_out_player_id)],
                         );
                         

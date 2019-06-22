@@ -167,7 +167,7 @@ impl Client {
                                 godot::GodotString::from_str(&target_method),
                             )
                         }
-                        godot_print!("Laminar: Client got packet from {}", packet.addr());
+                        //godot_print!("Laminar: Client got packet from {}", packet.addr());
                         
                         // Update recv_sleep to what we get from godot
                         match rx_sleep.try_recv() {
@@ -179,7 +179,54 @@ impl Client {
                     }
                     Ok(SocketEvent::Timeout(address)) => {
                         godot_print!("Laminar: Connection to server {} timed out.", address);
-                        // TODO: add timeout signal, so the client can handle it
+                        
+                        // Update our current root from godot
+                        match rx_root.try_recv() {
+                            Ok(root) => {
+                                current_root = root;
+                            }
+                            _ => {}
+                        }
+
+                        // Get the current root as a Node
+                        let target = plugin_node
+                            .node
+                            .get_tree()
+                            .unwrap()
+                            .get_root()
+                            .unwrap()
+                            .get_node(godot::NodePath::from_str(&current_root));
+                        
+                        // If the engine cannot find node by our path, skip.
+                        let target = match target {
+                            Some(target) => target,
+                            _ => continue,
+                        };
+
+                        // Connect the timed out signal to the calling gdscript
+                        let object = &target.to_object();
+                        plugin_node
+                            .node
+                            .clone()
+                            .connect(
+                                godot::GodotString::from_str("connection_timed_out"),
+                                Some(*object),
+                                godot::GodotString::from_str("_on_net_timed_out"),
+                                godot::VariantArray::new(),
+                                1,
+                            )
+                            .unwrap();
+
+                        plugin_node.node.emit_signal(
+                            godot::GodotString::from_str("connection_timed_out"),
+                            &[],
+                        );
+
+                        plugin_node.node.disconnect(
+                            godot::GodotString::from_str("connection_timed_out"),
+                            Some(*object),
+                            godot::GodotString::from_str("_on_net_timed_out"),
+                        );
                     }
                     Ok(_) => {
                         godot_print!("Laminar: Got nothing");
