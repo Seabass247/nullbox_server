@@ -188,11 +188,7 @@ impl Laminar {
     #[export]
     unsafe fn _process(&mut self, mut _owner: godot::Node, delta: f64) {
         if let Some(client) = self.client.as_mut() {
-            self.client_heartbeat_time += delta;
-            if self.client_heartbeat_time > 1.0 {
-                self.client_heartbeat_time = 0.0;
-                client.send_sync(datatypes::MetaMessage::Heartbeat);
-            }
+            client.send_sync(datatypes::MetaMessage::Heartbeat);
         }
         if self.server.is_some() {
             self.get_updated_server_conns();
@@ -265,7 +261,7 @@ impl Laminar {
         self.server = Some(server);
         self.server_conns = Some(HashMap::new());
 
-        match self.server.clone() {
+        match &self.server {
             Some(server) => unsafe {
                 godot_print!("Laminar: server waiting for connections");
                 // Connect the timed out signal to the calling gdscript

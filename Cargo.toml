@@ -8,7 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gdnative = { git = "https://github.com/GodotNativeTools/godot-rust" }
-laminar = "0.2.3"
+laminar = "0.2.0"
 serde = "1.0"
 crossbeam-channel = "0.3"
 serde_derive = "1.0"

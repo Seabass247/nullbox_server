@@ -111,7 +111,15 @@ impl Client {
 
                         let data: EventData = match deserialize(&received_data) {
                             Ok(data) => data,
-                            Err(_) => continue,
+                            Err(_) => match deserialize::<MetaMessage>(&received_data) {
+                                Ok(data) => {
+                                    godot_print!("Laminar: client got heartbeat from server");
+                                    continue;
+                                }
+                                _ => {
+                                    continue;
+                                }
+                            },
                         };
 
                         // Don't process data if the data's destination node path is outside our current scene root.

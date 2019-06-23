@@ -32,8 +32,9 @@ impl Server {
                 "0.0.0.0:8080".to_string().parse().unwrap()
             }
         };
+
         let (mut socket, packet_sender, event_receiver) = Socket::bind(listen_address).unwrap();
-        let event = event_receiver.clone();
+        
         thread::spawn(move || {
             socket.start_polling();
         });
@@ -96,6 +97,7 @@ impl Server {
     }
 
     pub fn send_sync_to_all(&mut self, conns: &mut HashMap<SocketAddr, i64>, message: MetaMessage) { 
+        godot_print!("Conns size: {}", conns.keys().len());
         for addr in conns.keys() {
             let send_event = SendEvent {
                 addr: *addr,
@@ -105,7 +107,7 @@ impl Server {
             };
 
             self.event_sender.send(send_event);
-            //godot_print!("LAMINAR: Server sends sync to {}", addr);
+            godot_print!("LAMINAR: Server sends sync to {}", addr);
         }      
     }
 

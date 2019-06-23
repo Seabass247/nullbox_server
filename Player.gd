@@ -109,6 +109,6 @@ func _input(event):
 
 func on_moved():
     var pos = self.get_global_transform().origin
-    laminar.send("/root/Game:player_pos" as String, [pos])
+    laminar.send("/root/Game:player_pos" as String, [pos as Vector3])
 
     
