@@ -5,4 +5,3 @@
 [resource]
 class_name = "Laminar"
 library = ExtResource( 1 )
-

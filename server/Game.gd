@@ -36,9 +36,8 @@ func _on_net_timed_out(id: int):
 
 func _on_net_player_pos(id: int, data):
 	var player_path = "Players/player_" + String(id)
-	var player: KinematicBody = get_node(player_path)
-	#print("player_", id, ": pos=", data[0])
-	player.global_transform.origin = data[0]
+	var player = get_node(player_path)
+	player.move_to_pos(data[0])
 
 func spawn_player(id, username):
 	var player = load("res://player.tscn")

@@ -117,20 +117,7 @@ impl Laminar {
         }
     }
 
-    // Server only func
-    #[export]
-    fn send_to(&mut self, _owner: gdnative::Node, player_id: i64, destination: godot::GodotString, variant: godot::VariantArray) {
-        let variant = godot::Variant::from_array(&variant);
-        let dest = &destination.to_string();
-        let dest_split: Vec<&str> = dest.split(":").collect();
-        let node_path = dest_split[0];
-        // Fail if we dont get a destination formatted "$NODE_PATH:$METHOD"
-        if dest_split.len() <= 1 {
-            godot_print!("Laminar: error trying to parse send destination path");
-            return;
-        }
-        let method = dest_split[1];
-
+    fn get_updated_server_conns(&mut self) -> &mut HashMap<std::net::SocketAddr, i64> {
         let conns = self.server_conns.as_mut().unwrap();
 
         match self.server.as_mut() {
@@ -149,6 +136,27 @@ impl Laminar {
             _ => {},
         }
 
+        conns
+    }
+
+    // Server only func
+    #[export]
+    fn send_to(&mut self, _owner: gdnative::Node, player_id: i64, destination: godot::GodotString, variant: godot::VariantArray) {
+        let variant = godot::Variant::from_array(&variant);
+        let dest = &destination.to_string();
+        let dest_split: Vec<&str> = dest.split(":").collect();
+        let node_path = dest_split[0];
+        // Fail if we dont get a destination formatted "$NODE_PATH:$METHOD"
+        if dest_split.len() <= 1 {
+            godot_print!("Laminar: error trying to parse send destination path");
+            return;
+        }
+        let method = dest_split[1];
+        
+        self.get_updated_server_conns();
+        
+        let ref mut conns = self.server_conns.clone().unwrap();
+        
         match player_id {
             0 => {
                 match self.server.as_mut() {
@@ -187,13 +195,15 @@ impl Laminar {
                 client.send_sync(datatypes::MetaMessage::Heartbeat);
             }
         }
-        if let Some(server) = self.server.as_mut() {
-            let conns = self.server_conns.as_mut().unwrap();
+        if self.server.is_some() {
+            self.get_updated_server_conns();
+        }
+        if let Some(ref mut server) = self.server {
+            let ref mut conns = self.server_conns.clone().unwrap();
             self.client_heartbeat_time += delta;
             if self.client_heartbeat_time > 1.0 {
                 self.client_heartbeat_time = 0.0;
                 server.send_sync_to_all(conns, datatypes::MetaMessage::Heartbeat);
-                
             }
         }
     }

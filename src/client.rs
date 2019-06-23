@@ -65,7 +65,7 @@ impl Client {
             Err(e) => println!("Some error occurred: {:?}", e),
         }
 
-        godot_print!("Laminar: client sends sync")
+        //godot_print!("Laminar: client sends sync")
     }
 
     pub unsafe fn start_receiving(&self, owner: godot::Node) {

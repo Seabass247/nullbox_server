@@ -63,7 +63,7 @@ impl Server {
 
                 match serialized {
                     Some(packet) => {
-                        //godot_print!("##########SEND##########");
+                        //godot_print!("Laminar server: payload size {}", packet.payload().len());
                         sender.send(packet);
                     }
                     None => {
@@ -76,7 +76,7 @@ impl Server {
         event_sender
     }
 
-    pub fn send_to_all(&mut self, conns: &mut HashMap<SocketAddr, i64>, node_path: String, method: String, variants: VariantTypes) {
+    pub fn send_to_all(&self, conns: &mut HashMap<SocketAddr, i64>, node_path: String, method: String, variants: VariantTypes) {
         for addr in conns.keys() {
             let pack = EventData {
                 node_path: node_path.clone(),
@@ -105,7 +105,7 @@ impl Server {
             };
 
             self.event_sender.send(send_event);
-            godot_print!("LAMINAR: Server sends sync to {}", addr);
+            //godot_print!("LAMINAR: Server sends sync to {}", addr);
         }      
     }
 
@@ -252,7 +252,7 @@ impl Server {
                             )
                         }
 
-                        godot_print!("Laminar: Server got packet from {}", packet.addr());
+                        //godot_print!("Laminar: Server got packet from {}", packet.addr());
                     }
                     Ok(SocketEvent::Timeout(address)) => {
                         godot_print!("Laminar: Connection to client {} timed out.", address);
