@@ -7,7 +7,6 @@ extern crate gdnative as godot;
 extern crate bincode;
 extern crate crossbeam_channel;
 extern crate laminar;
-extern crate nullbox_core as nullbox;
 extern crate serde_derive;
 
 use bincode::{deserialize, serialize};
